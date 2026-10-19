@@ -1,11 +1,10 @@
 """Dark-glass windows: batch progress, settings, and a small message box."""
-import subprocess
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QFontMetrics
-from PySide6.QtWidgets import (QApplication, QDialog, QHBoxLayout, QLabel, QLineEdit, QProgressBar,
-                               QPushButton, QScrollArea, QVBoxLayout, QWidget)
+from PySide6.QtGui import QCursor
+from PySide6.QtWidgets import (QApplication, QDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+                               QVBoxLayout, QWidget)
 
 from .theme import GlassMixin, Segmented, Toggle, footer, muted, section
 
@@ -41,6 +40,7 @@ def notice(parent, title, text, copy_text=None):
 # ---------- batch runner ----------
 class _Signals(QObject):
     done = Signal(int, object, str)  # row, result, error
+    progress = Signal(int, float)    # row, 0..1 (only engines that know their progress report it)
 
 
 class _Job(QRunnable):
@@ -49,123 +49,96 @@ class _Job(QRunnable):
         self.row, self.fn, self.sig = row, fn, sig
 
     def run(self):
+        from ..progress import set_reporter
+        last = [-1.0]
+
+        def report(f):  # throttle: one signal per 1 %
+            if f - last[0] >= 0.01 or f >= 1:
+                last[0] = f
+                self.sig.progress.emit(self.row, f)
+        set_reporter(report)
         try:
             self.sig.done.emit(self.row, self.fn(), "")
         except Exception as e:  # surfaced in the window, never swallowed
             self.sig.done.emit(self.row, None, str(e) or e.__class__.__name__)
+        finally:
+            set_reporter(None)
 
 
-class _Row(QWidget):
-    """One file: name · status, with a thin bar that runs while working."""
-
-    def __init__(self, name):
-        super().__init__()
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 2, 0, 2)
-        lay.setSpacing(4)
-        top = QHBoxLayout()
-        self.name = QLabel(QFontMetrics(self.font()).elidedText(name, Qt.ElideMiddle, 300))
-        self.name.setToolTip(name)
-        self.status = muted("Working…")
-        self.status.setWordWrap(False)
-        top.addWidget(self.name, 1)
-        top.addWidget(self.status)
-        self.bar = QProgressBar()
-        self.bar.setTextVisible(False)
-        self.bar.setRange(0, 0)  # busy
-        lay.addLayout(top)
-        lay.addWidget(self.bar)
-
-    def finish(self, ok: bool, text: str):
-        self.bar.setRange(0, 1)
-        self.bar.setValue(1)
-        self.bar.setProperty("state", "done" if ok else "error")
-        self.bar.style().unpolish(self.bar)
-        self.bar.style().polish(self.bar)
-        self.status.setText(QFontMetrics(self.font()).elidedText(text, Qt.ElideRight, 220))
-        self.status.setToolTip(text)
-        self.status.setStyleSheet("color:#30d158" if ok else "color:#ff6961")
+PILL = ("background: rgba(24,24,27,215); border: 1px solid rgba(255,255,255,0.10); border-radius: 12px;"
+        " padding: 4px 16px; font-weight: 600;")
 
 
-class ProgressWindow(GlassMixin, QWidget):
-    """Runs jobs [(label, callable)] in a thread pool; selects results in an open Explorer window."""
+class ProgressWindow(QWidget):
+    """Just the orange: a floating citrus slice that fills with real progress, 'Working…' then 'Done'.
+    Results are selected in an already-open Explorer window. If something fails, clicking shows why."""
     pool = QThreadPool()
 
     def __init__(self, title, jobs):
-        super().__init__(None, Qt.WindowStaysOnTopHint | Qt.Tool)
+        super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        from .citrus import CitrusProgress
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setToolTip(title)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(10, 10, 10, 10)
+        lay.setSpacing(8)
+        self.citrus = CitrusProgress(150)
+        lay.addWidget(self.citrus, 0, Qt.AlignHCenter)
+        self.status = QLabel("Working…")
+        self.status.setAlignment(Qt.AlignCenter)
+        self.status.setStyleSheet(PILL)  # dark pill: readable on any wallpaper
+        lay.addWidget(self.status, 0, Qt.AlignHCenter)
         n = len(jobs)
-        body = self._glass(title, f"{n} file{'s' * (n != 1)}")
-        self.setMinimumWidth(440)
-        rows_box = QWidget()
-        rows = QVBoxLayout(rows_box)
-        rows.setContentsMargins(0, 0, 4, 0)
-        rows.setSpacing(8)
-        self.rows = [_Row(label) for label, _ in jobs]
-        for r in self.rows:
-            rows.addWidget(r)
-        rows.addStretch()
-        if n > 5:  # long batches scroll instead of growing off-screen
-            area = QScrollArea()
-            area.setWidget(rows_box)
-            area.setWidgetResizable(True)
-            area.setFrameShape(QScrollArea.NoFrame)
-            area.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }")
-            area.setFixedHeight(5 * 52)
-            body.addWidget(area)
-        else:
-            body.addWidget(rows_box)
-        bottom = QHBoxLayout()
-        self.summary = muted("")
-        self.reveal = QPushButton("Show in folder")
-        self.reveal.setEnabled(False)
-        self.reveal.clicked.connect(self._show)
-        done = QPushButton("Close")
-        done.setObjectName("primary")
-        done.clicked.connect(self.close)
-        bottom.addWidget(self.summary, 1)
-        bottom.addWidget(self.reveal)
-        bottom.addWidget(done)
-        body.addLayout(bottom)
-        self.outputs, self.errors, self.left, self.total = [], 0, n, n
+        self.names = [label for label, _ in jobs]
+        self.fracs, self.outputs, self.failures, self.left, self.total = [0.0] * n, [], [], n, n
         self.sig = _Signals()
         self.sig.done.connect(self._done)
+        self.sig.progress.connect(self._progress)
         self.pool.setMaxThreadCount(max(2, QThreadPool.globalInstance().maxThreadCount() // 2))
-        self._summary()
+        self.adjustSize()
+        geo = (QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()).availableGeometry()
+        self.move(geo.center().x() - self.width() // 2, geo.bottom() - self.height() - 40)
         for i, (_, fn) in enumerate(jobs):
             self.pool.start(_Job(i, fn, self.sig))
         self.show()
 
-    def _summary(self):
-        finished = self.total - self.left
-        self.summary.setText(f"{finished} of {self.total} done" + (f" · {self.errors} failed" if self.errors else ""))
+    def _progress(self, row, f):
+        self.fracs[row] = max(self.fracs[row], f)
+        self.citrus.set_value(sum(self.fracs) / self.total)
 
     def _done(self, row, result, err):
         self.left -= 1
+        self.fracs[row] = 1.0
         if err:
-            self.errors += 1
-            self.rows[row].finish(False, err)
+            self.failures.append(f"{self.names[row]}: {err}")
         else:
-            names = []
             for r in result if isinstance(result, list) else [result]:
                 if isinstance(r, str):  # e.g. QR text
                     QApplication.clipboard().setText(r)
                     notice(self, "QR code", r + "\n\nCopied to the clipboard.", r)
-                    names.append("read")
                 elif r:
                     self.outputs.append(Path(r))
-                    names.append(Path(r).name)
-            self.rows[row].finish(True, "→ " + ", ".join(names) if names else "Done")
-        self._summary()
-        if not self.left:
-            self.reveal.setEnabled(bool(self.outputs))
-            if self.outputs:
-                from ..actions import reveal
-                reveal(self.outputs)  # select in an already-open Explorer window; never opens a new one
-            if not self.errors:
-                QTimer.singleShot(1600, lambda: self.underMouse() or self.close())
+        self.citrus.set_value(sum(self.fracs) / self.total)
+        if self.left:
+            return
+        self.citrus.finish()
+        if self.failures:
+            self.status.setText(f"Done · {len(self.failures)} failed")
+            self.status.setStyleSheet(PILL + " color: #ff8a80;")
+            self.status.setCursor(Qt.PointingHandCursor)
+            self.setToolTip("Click to see what went wrong")
+        else:
+            self.status.setText("Done")
+        if self.outputs:
+            from ..actions import reveal
+            reveal(self.outputs)  # select in an already-open Explorer window; never opens a new one
+        QTimer.singleShot(8000 if self.failures else 1400, lambda: self.underMouse() or self.close())
 
-    def _show(self):
-        subprocess.Popen(["explorer", "/select,", str(self.outputs[0])])  # explicit click: may open a window
+    def mousePressEvent(self, e):
+        if not self.left and self.failures:
+            notice(self, "Some files failed", "\n\n".join(self.failures))
+        if not self.left:
+            self.close()
 
 
 # ---------- settings ----------

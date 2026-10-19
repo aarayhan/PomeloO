@@ -2,6 +2,7 @@
 from pathlib import Path
 import re
 import subprocess
+import threading
 
 import imageio_ffmpeg
 
@@ -31,12 +32,36 @@ EVEN = "scale=trunc(iw/2)*2:trunc(ih/2)*2"
 
 
 def ff(*args, cwd=None) -> str:
-    """Run ffmpeg; raise with the tail of stderr on failure. Returns stderr."""
-    p = subprocess.run([FF, "-hide_banner", "-y", *map(str, args)], capture_output=True,
-                       text=True, encoding="utf-8", errors="replace", creationflags=_NOWIN, cwd=cwd)
+    """Run ffmpeg; raise with the tail of stderr on failure. Returns stderr.
+    When a progress reporter is active (see pomeloo.progress), real progress is read from ffmpeg."""
+    from ..progress import report, reporter
+    args = [str(a) for a in args]
+    if reporter() is None:
+        p = subprocess.run([FF, "-hide_banner", "-y", *args], capture_output=True,
+                           text=True, encoding="utf-8", errors="replace", creationflags=_NOWIN, cwd=cwd)
+        if p.returncode:
+            raise RuntimeError("ffmpeg: " + "\n".join(p.stderr.strip().splitlines()[-4:]))
+        return p.stderr
+    duration = float(args[args.index("-t") + 1]) if "-t" in args else (
+        probe(args[args.index("-i") + 1])["duration"] if "-i" in args else 0)
+    p = subprocess.Popen([FF, "-hide_banner", "-y", "-progress", "pipe:1", "-nostats", *args],
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                         errors="replace", creationflags=_NOWIN, cwd=cwd)
+    err = []
+    t = threading.Thread(target=lambda: err.append(p.stderr.read()), daemon=True)  # avoid pipe deadlock
+    t.start()
+    for line in p.stdout:
+        if line.startswith("out_time_us=") and duration > 0:
+            try:
+                report(int(line.split("=", 1)[1]) / 1e6 / duration)
+            except ValueError:
+                pass  # "N/A" before the first frame
+    p.wait()
+    t.join()
+    stderr = err[0] if err else ""
     if p.returncode:
-        raise RuntimeError("ffmpeg: " + "\n".join(p.stderr.strip().splitlines()[-4:]))
-    return p.stderr
+        raise RuntimeError("ffmpeg: " + "\n".join(stderr.strip().splitlines()[-4:]))
+    return stderr
 
 
 def probe(src) -> dict:
