@@ -200,21 +200,34 @@ class Timeline(QWidget):
 
     def paintEvent(self, _):
         g = QPainter(self)
-        r = self.rect()
-        g.fillRect(r, QColor(40, 40, 44))
+        g.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect())
+        h = r.height()
+        g.setPen(Qt.NoPen)
+        g.setBrush(QColor(255, 255, 255, 14))
+        g.drawRoundedRect(r, 8, 8)
         if self.wave:
-            g.drawPixmap(r, self.wave)
-        for a, b in self.ranges:
-            g.fillRect(QRectF(self._x(a), 0, self._x(b) - self._x(a), r.height()), QColor(255, 59, 48, 90))
-        if self.mark_in is not None:
+            g.drawPixmap(r.toRect(), self.wave)
+        for a, b in self.ranges:  # bleep / marked ranges
+            g.setBrush(QColor(255, 69, 58, 80))
+            g.drawRoundedRect(QRectF(self._x(a), 0, self._x(b) - self._x(a), h), 4, 4)
+        if self.mark_in is not None:  # kept part, with In/Out edges
             b = self.mark_out if self.mark_out is not None else self.duration
-            g.fillRect(QRectF(self._x(self.mark_in), 0, self._x(b) - self._x(self.mark_in), r.height()),
-                       QColor(255, 138, 0, 70))
-        g.setPen(QPen(QColor("#34c759"), 2))
+            x0, x1 = self._x(self.mark_in), self._x(b)
+            g.setBrush(QColor(255, 138, 0, 38))
+            g.drawRect(QRectF(x0, 0, x1 - x0, h))
+            g.setBrush(QColor("#ff8a00"))
+            for x in (x0, x1):
+                g.drawRoundedRect(QRectF(x - 2, 0, 4, h), 2, 2)
+        g.setPen(QPen(QColor("#30d158"), 2))
         for t in self.points:
-            g.drawLine(QPointF(self._x(t), 0), QPointF(self._x(t), r.height()))
+            g.drawLine(QPointF(self._x(t), 0), QPointF(self._x(t), h))
         g.setPen(QPen(QColor("white"), 2))
-        g.drawLine(QPointF(self._x(self.pos), 0), QPointF(self._x(self.pos), r.height()))
+        x = self._x(self.pos)
+        g.drawLine(QPointF(x, 0), QPointF(x, h))
+        g.setPen(Qt.NoPen)
+        g.setBrush(QColor("white"))
+        g.drawEllipse(QPointF(x, 3), 4, 4)
         g.end()
 
 
@@ -242,18 +255,27 @@ class MediaScrubber(QWidget):
         wave = None
         if not info["has_video"]:
             import tempfile
+            from PIL import Image
             from ..tools.media import waveform_png
-            wave = QPixmap(str(waveform_png(path, Path(tempfile.mkdtemp()) / "wave.png")))
+            png = waveform_png(path, Path(tempfile.mkdtemp()) / "wave.png", color="#ff9a2e")
+            im = Image.open(png).convert("RGBA")  # black background -> transparent, so it sits on the glass
+            im.putalpha(im.convert("L").point(lambda v: 255 if v > 24 else 0))
+            wave = pil_to_pixmap(im)
         self.timeline = Timeline(self.duration, wave)
         self.timeline.seek.connect(lambda t: self.player.setPosition(int(t * 1000)))
         lay.addWidget(self.timeline)
         self.label = QLabel()
+        self.label.setObjectName("muted")
         self.player.positionChanged.connect(self._pos)
         row = QHBoxLayout()
-        for text, fn in (("◀ frame", lambda: self._step(-1)), ("▶ / ❚❚", self.toggle), ("frame ▶", lambda: self._step(1))):
-            b = QPushButton(text)
+        self.play_btn = QPushButton("Play")
+        for b, fn in ((QPushButton("‹ Frame"), lambda: self._step(-1)), (self.play_btn, self.toggle),
+                      (QPushButton("Frame ›"), lambda: self._step(1))):
+            b.setCursor(Qt.PointingHandCursor)
             b.clicked.connect(fn)
             row.addWidget(b)
+        self.player.playbackStateChanged.connect(
+            lambda s: self.play_btn.setText("Pause" if s == self.player.PlaybackState.PlayingState else "Play"))
         row.addWidget(self.label)
         row.addStretch()
         actions = {"range": [("Set In", self.set_in), ("Set Out", self.set_out)],

@@ -14,8 +14,8 @@ from multiprocessing.connection import Client, Listener
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QPoint, QPointF, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QCursor, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication, QDialog, QMenu, QMessageBox, QSystemTrayIcon, QWidget
+from PySide6.QtGui import QAction, QColor, QCursor, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtWidgets import QApplication, QDialog, QMenu, QSystemTrayIcon, QWidget
 
 from .catalog import ACTIONS, TOOLS
 from .shell import APPDIR, ICON, start_app_detached
@@ -43,15 +43,31 @@ def save_settings(s: dict):
 
 
 def logo(size=64) -> QPixmap:
-    pm = QPixmap(size, size)
+    """A pomelo: shaded citrus body with a soft highlight and a leaf."""
+    from PySide6.QtGui import QLinearGradient, QPainterPath, QRadialGradient
+    s = size
+    pm = QPixmap(s, s)
     pm.fill(Qt.transparent)
     g = QPainter(pm)
     g.setRenderHint(QPainter.Antialiasing)
     g.setPen(Qt.NoPen)
-    g.setBrush(QColor("#ff8a00"))
-    g.drawEllipse(QPointF(size / 2, size * 0.55), size * 0.42, size * 0.42)
-    g.setBrush(QColor("#34c759"))
-    g.drawEllipse(QPointF(size * 0.62, size * 0.14), size * 0.16, size * 0.09)
+    body = QRadialGradient(QPointF(s * 0.38, s * 0.44), s * 0.55)
+    for stop, color in ((0, "#ffd58a"), (0.45, "#ffa12a"), (1, "#e2620a")):
+        body.setColorAt(stop, QColor(color))
+    g.setBrush(body)
+    g.drawEllipse(QPointF(s * 0.5, s * 0.56), s * 0.4, s * 0.38)
+    g.setBrush(QColor(255, 255, 255, 70))
+    g.drawEllipse(QPointF(s * 0.37, s * 0.43), s * 0.1, s * 0.06)
+    leaf = QPainterPath(QPointF(s * 0.52, s * 0.2))
+    leaf.quadTo(QPointF(s * 0.66, s * 0.02), QPointF(s * 0.86, s * 0.1))
+    leaf.quadTo(QPointF(s * 0.72, s * 0.26), QPointF(s * 0.52, s * 0.2))
+    lg = QLinearGradient(QPointF(s * 0.52, s * 0.2), QPointF(s * 0.86, s * 0.1))
+    lg.setColorAt(0, QColor("#2fa84a"))
+    lg.setColorAt(1, QColor("#7be08a"))
+    g.setBrush(lg)
+    g.drawPath(leaf)
+    g.setPen(QPen(QColor("#6b3e12"), max(1.0, s * 0.03), Qt.SolidLine, Qt.RoundCap))
+    g.drawLine(QPointF(s * 0.5, s * 0.2), QPointF(s * 0.5, s * 0.13))
     g.end()
     return pm
 
@@ -222,17 +238,41 @@ class DropPad(QWidget):
         self.app, self._grab = app, None
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAcceptDrops(True)
-        self.setFixedSize(56, 56)
-        self.setToolTip("PomeloO: drop files here. Right-click for menu.")
+        self.setFixedSize(68, 68)
+        self.setToolTip("PomeloO: drop files here. Right-click for the menu.")
+        self.hot, self.fruit = False, logo(40)
         geo = QApplication.primaryScreen().availableGeometry()
-        self.move(geo.right() - 80, geo.bottom() - 90)
+        self.move(geo.right() - 88, geo.bottom() - 98)
 
     def paintEvent(self, _):
         g = QPainter(self)
-        g.drawPixmap(0, 0, logo(56))
+        g.setRenderHint(QPainter.Antialiasing)
+        c = QPointF(34, 34)
+        g.setPen(Qt.NoPen)
+        g.setBrush(QColor(0, 0, 0, 70))  # soft shadow
+        g.drawEllipse(c + QPointF(0, 2), 29, 29)
+        if self.hot:  # glow ring when hovered or a file is over it
+            g.setBrush(QColor(255, 138, 0, 90))
+            g.drawEllipse(c, 33, 33)
+        g.setBrush(QColor(28, 28, 31, 230))
+        g.setPen(QPen(QColor(255, 255, 255, 40), 1))
+        g.drawEllipse(c, 28, 28)
+        g.drawPixmap(14, 15, self.fruit)
         g.end()
 
+    def enterEvent(self, e):
+        self.hot = True
+        self.update()
+
+    def leaveEvent(self, e):
+        self.hot = False
+        self.update()
+
+    def dragLeaveEvent(self, e):
+        self.leaveEvent(e)
+
     def dragEnterEvent(self, e):
+        self.enterEvent(e)
         if e.mimeData().hasUrls():
             e.acceptProposedAction()
             mode = self.app.wheel.mode_for_modifiers(e.modifiers()) or "convert"
@@ -306,7 +346,7 @@ class App(QObject):
         save_settings(self.settings)
 
     def open_settings(self):
-        from .ui.dialogs import SettingsDialog
+        from .ui.windows import SettingsDialog
         d = SettingsDialog(self.settings)
         if d.exec() == QDialog.Accepted and (s := d.result_settings()):
             self.settings.update(s)
@@ -343,7 +383,8 @@ class App(QObject):
     def dispatch(self, kind: str, ident: str, paths: list):
         if not paths:
             return
-        from .ui.dialogs import ParamDialog, ProgressWindow
+        from .ui.dialogs import ParamDialog
+        from .ui.windows import ProgressWindow, notice
         try:
             if kind == "action":
                 from .actions import run_action
@@ -369,7 +410,7 @@ class App(QObject):
                     jobs = [(Path(p).name, partial(run_tool, ident, [p], params)) for p in paths]
             self.windows = [w for w in self.windows if w.isVisible()] + [ProgressWindow(title, jobs)]
         except Exception as e:
-            QMessageBox.warning(None, "PomeloO", str(e))
+            notice(None, "Something went wrong", str(e))
 
 
 def main() -> int:
@@ -379,6 +420,8 @@ def main() -> int:
     qapp = QApplication(sys.argv)
     qapp.setQuitOnLastWindowClosed(False)
     qapp.setApplicationName("PomeloO")
+    from .ui.theme import QSS
+    qapp.setStyleSheet(QSS)
     ensure_assets()
     qapp.setWindowIcon(QIcon(str(ICON)))
     app = App(qapp)  # noqa: F841 (keep alive)

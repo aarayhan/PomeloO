@@ -191,46 +191,92 @@ class Wheel(QWidget):
         p.closeSubpath()
         return p
 
+    def _animate(self):
+        """Quick pop-in: fade + slight grow (120 ms)."""
+        from PySide6.QtCore import QEasingCurve, QVariantAnimation
+        self._t = 0.0
+        self._anim = QVariantAnimation(self, startValue=0.0, endValue=1.0, duration=120,
+                                       easingCurve=QEasingCurve.OutCubic)
+        self._anim.valueChanged.connect(lambda v: (setattr(self, "_t", v), self.setWindowOpacity(v), self.update()))
+        self._anim.start()
+
+    def showEvent(self, e):
+        self._animate()
+        super().showEvent(e)
+
     def paintEvent(self, _):
+        from PySide6.QtGui import QRadialGradient
         g = QPainter(self)
         g.setRenderHint(QPainter.Antialiasing)
         c = QPointF(SIZE / 2, SIZE / 2)
-        g.setPen(Qt.NoPen)
-        g.setBrush(QColor(28, 28, 30, 215))
-        g.drawEllipse(c, OUTER + 8, OUTER + 8)
+        t = getattr(self, "_t", 1.0)
+        g.translate(c)
+        g.scale(0.9 + 0.1 * t, 0.9 + 0.1 * t)
+        g.translate(-c)
+        # backdrop: dark glass disc with a faint rim
+        bg = QRadialGradient(c, OUTER + 10)
+        bg.setColorAt(0, QColor(40, 40, 46, 238))
+        bg.setColorAt(1, QColor(20, 20, 23, 238))
+        g.setPen(QPen(QColor(255, 255, 255, 30), 1))
+        g.setBrush(bg)
+        g.drawEllipse(c, OUTER + 9, OUTER + 9)
         n = len(self.items)
-        g.setFont(QFont("Segoe UI", 9, QFont.DemiBold))
         for i, (_, title) in enumerate(self.items):
-            g.setPen(Qt.NoPen)
-            g.setBrush(ORANGE if i == self.hover else QColor(255, 255, 255, 34))
-            g.drawPath(self._petal(i, n))
-            mid = (INNER + OUTER) / 2
+            hot = i == self.hover
             a = angle(i, n) if n > 1 else math.pi / 2
-            pt = QPointF(c.x() + math.cos(a) * mid, c.y() - math.sin(a) * mid)
+            pop = QPointF(math.cos(a), -math.sin(a)) * (5 if hot and n > 1 else 0)  # hovered petal lifts out
+            g.setPen(QPen(QColor(255, 255, 255, 22), 1))
+            if hot:
+                hg = QRadialGradient(c, OUTER)
+                hg.setColorAt(0.35, QColor("#ffb04d"))
+                hg.setColorAt(1, QColor("#ff7a00"))
+                g.setBrush(hg)
+                g.setPen(Qt.NoPen)
+            else:
+                g.setBrush(QColor(255, 255, 255, 16))
+            g.drawPath(self._petal(i, n).translated(pop))
+            mid = (INNER + OUTER) / 2
+            pt = QPointF(c.x() + math.cos(a) * mid, c.y() - math.sin(a) * mid) + pop
             w = min(OUTER - INNER, 2 * math.pi * mid / n - 6)
-            g.setPen(QColor("white"))
+            g.setFont(QFont("Segoe UI", 9, QFont.Bold if hot else QFont.DemiBold))
+            g.setPen(QColor("#18181b") if hot else QColor(235, 235, 240))
             g.drawText(QRectF(pt.x() - w / 2, pt.y() - 20, w, 40), Qt.AlignCenter | Qt.TextWordWrap, title)
+        # centre: mode, selection, and three dots for the three wheels
+        g.setPen(QPen(QColor(255, 255, 255, 25), 1))
+        g.setBrush(QColor(18, 18, 21, 245))
+        g.drawEllipse(c, INNER - 6, INNER - 6)
         g.setPen(QColor("white"))
         g.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        g.drawText(QRectF(c.x() - INNER, c.y() - 22, 2 * INNER, 22), Qt.AlignCenter, MODE_NAMES[self.mode])
+        g.drawText(QRectF(c.x() - INNER, c.y() - 24, 2 * INNER, 22), Qt.AlignCenter, MODE_NAMES[self.mode])
+        g.setPen(QColor(161, 161, 170))
         g.setFont(QFont("Segoe UI", 8))
         count = f"{len(self.paths)} file{'s' * (len(self.paths) != 1)}" if self.paths else "Drop here"
-        g.drawText(QRectF(c.x() - INNER, c.y(), 2 * INNER, 20), Qt.AlignCenter, count)
+        g.drawText(QRectF(c.x() - INNER, c.y() - 2, 2 * INNER, 18), Qt.AlignCenter, count)
+        g.setPen(Qt.NoPen)
+        for k, m in enumerate(MODES):
+            g.setBrush(ORANGE if m == self.mode else QColor(255, 255, 255, 60))
+            g.drawEllipse(QPointF(c.x() + (k - 1) * 10, c.y() + 24), 3, 3)
         if not n and self.paths:
+            g.setPen(QColor(161, 161, 170))
             g.drawText(QRectF(c.x() - OUTER, c.y() + INNER, 2 * OUTER, 30), Qt.AlignCenter,
                        f"No {MODE_NAMES[self.mode].lower()} for this selection")
+        g.resetTransform()
+        # hint pill: action preview while hovering, else the key map
         keys = {v: k for k, v in self.settings.get("keys", {}).items()}
-        hint = "    ".join(f"{keys.get(m, '?').capitalize()}: {MODE_NAMES[m]}" for m in MODES)
         if self.hover is not None and n:
             item, title = self.items[self.hover]
             verb = f"make a {title}" if self.mode == "convert" else (
-                TOOLS[item][1] if self.mode == "tools" else ACTIONS[item][1]).lower()
+                f"use {TOOLS[item][1]}" if self.mode == "tools" else ACTIONS[item][1].lower())
             hint = f"{'Press Enter' if self.keyboard else 'Let go'} to {verb}"
-        r = QRectF(20, SIZE + 4, SIZE - 40, 26)
-        g.setPen(Qt.NoPen)
-        g.setBrush(QColor(28, 28, 30, 215))
-        g.drawRoundedRect(r, 13, 13)
-        g.setPen(QPen(QColor("white")))
+        else:
+            hint = "   ·   ".join(f"{keys.get(m, '?').capitalize()}  {MODE_NAMES[m]}" for m in MODES)
+        g.setFont(QFont("Segoe UI", 9))
+        tw = g.fontMetrics().horizontalAdvance(hint) + 36
+        r = QRectF((SIZE - tw) / 2, SIZE + 6, tw, 28)
+        g.setPen(QPen(QColor(255, 255, 255, 30), 1))
+        g.setBrush(QColor(24, 24, 27, 235))
+        g.drawRoundedRect(r, 14, 14)
+        g.setPen(QColor("white"))
         g.drawText(r, Qt.AlignCenter, hint)
         g.end()
 
