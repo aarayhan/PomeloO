@@ -1,0 +1,28 @@
+[project]
+name = "pomeloo"
+version = "1.0.0"
+description = "Local file converter and file tools for Windows: drag a file, tap a key, pick a format."
+requires-python = ">=3.12"
+readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+dependencies = [
+  "PySide6", "Pillow>=11.2", "pillow-heif", "PyMuPDF", "pymupdf4llm", "pdf2docx", "python-pptx",
+  "openpyxl", "odfpy", "xlrd", "pandas", "pypandoc_binary", "imageio-ffmpeg", "zxing-cpp", "pywin32", "numpy",
+  "winrt-runtime", "winrt-Windows.Media.Ocr", "winrt-Windows.Media.FaceAnalysis", "winrt-Windows.Graphics.Imaging",
+  "winrt-Windows.Storage", "winrt-Windows.Storage.Streams", "winrt-Windows.Globalization",
+  "winrt-Windows.Foundation", "winrt-Windows.Foundation.Collections",
+]
+
+[project.scripts]
+pomeloo = "pomeloo.__main__:main"
+
+[project.gui-scripts]
+pomelow = "pomeloo.__main__:main"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["pomeloo*"]

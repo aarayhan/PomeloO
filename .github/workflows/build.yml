@@ -1,0 +1,53 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write  # attach the zip to releases on version tags
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      POMELOO_NO_DOWNLOAD: "1"  # CI has no Office suite; skip the 375 MB slide-engine download
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install
+        run: python -m pip install -e . pyinstaller
+
+      - name: Test (every conversion pair and tool, outputs opened and validated)
+        run: python tests/test_convert.py
+
+      - name: Build exe
+        run: >
+          pyinstaller --noconfirm --windowed --name PomeloO --distpath dist --workpath build
+          --specpath build --paths . --collect-all imageio_ffmpeg --collect-all pypandoc
+          --collect-all pillow_heif --collect-all zxingcpp --collect-all pymupdf
+          --collect-submodules pomeloo --collect-submodules winrt --collect-binaries winrt
+          scripts/pomeloo_entry.py
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE, THIRD_PARTY_NOTICES.md, README.md dist/PomeloO/
+          Compress-Archive -Path dist/PomeloO/* -DestinationPath PomeloO-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PomeloO-windows
+          path: PomeloO-windows.zip
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PomeloO-windows.zip
