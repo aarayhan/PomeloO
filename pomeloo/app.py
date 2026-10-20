@@ -43,39 +43,18 @@ def save_settings(s: dict):
 
 
 def logo(size=64) -> QPixmap:
-    """A pomelo: shaded citrus body with a soft highlight and a leaf."""
-    from PySide6.QtGui import QLinearGradient, QPainterPath, QRadialGradient
-    s = size
-    pm = QPixmap(s, s)
-    pm.fill(Qt.transparent)
-    g = QPainter(pm)
-    g.setRenderHint(QPainter.Antialiasing)
-    g.setPen(Qt.NoPen)
-    body = QRadialGradient(QPointF(s * 0.38, s * 0.44), s * 0.55)
-    for stop, color in ((0, "#ffd58a"), (0.45, "#ffa12a"), (1, "#e2620a")):
-        body.setColorAt(stop, QColor(color))
-    g.setBrush(body)
-    g.drawEllipse(QPointF(s * 0.5, s * 0.56), s * 0.4, s * 0.38)
-    g.setBrush(QColor(255, 255, 255, 70))
-    g.drawEllipse(QPointF(s * 0.37, s * 0.43), s * 0.1, s * 0.06)
-    leaf = QPainterPath(QPointF(s * 0.52, s * 0.2))
-    leaf.quadTo(QPointF(s * 0.66, s * 0.02), QPointF(s * 0.86, s * 0.1))
-    leaf.quadTo(QPointF(s * 0.72, s * 0.26), QPointF(s * 0.52, s * 0.2))
-    lg = QLinearGradient(QPointF(s * 0.52, s * 0.2), QPointF(s * 0.86, s * 0.1))
-    lg.setColorAt(0, QColor("#2fa84a"))
-    lg.setColorAt(1, QColor("#7be08a"))
-    g.setBrush(lg)
-    g.drawPath(leaf)
-    g.setPen(QPen(QColor("#6b3e12"), max(1.0, s * 0.03), Qt.SolidLine, Qt.RoundCap))
-    g.drawLine(QPointF(s * 0.5, s * 0.2), QPointF(s * 0.5, s * 0.13))
-    g.end()
-    return pm
+    """The app icon: an orange slice whose segments step from transparent to solid."""
+    from .ui.citrus import icon_pixmap
+    return icon_pixmap(size)
 
 
 def ensure_assets():
     APPDIR.mkdir(parents=True, exist_ok=True)
-    if not ICON.exists():
-        logo(64).save(str(ICON), "ICO")
+    try:  # rewritten each start so icon updates reach the Explorer menu too
+        from .ui.citrus import write_ico
+        write_ico(ICON)
+    except OSError:
+        pass  # file in use; the existing icon is fine
     if not TICK.exists():  # 25 ms decaying click for wheel highlights
         rate = 44100
         frames = b"".join(struct.pack("<h", int(9000 * math.exp(-i / 180) * math.sin(2 * math.pi * 1800 * i / rate)))

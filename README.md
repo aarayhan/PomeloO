@@ -51,7 +51,7 @@ uv venv --python 3.13 .venv
 uv pip install --python .venv\Scripts\python.exe -e . pyinstaller
 .venv\Scripts\python.exe tests\test_convert.py        # converts every pair and runs every tool
 .venv\Scripts\python.exe -m pomeloo                    # run the tray app from source
-.venv\Scripts\pyinstaller --noconfirm --windowed --name PomeloO --distpath dist --workpath build `
+.venv\Scripts\pyinstaller --noconfirm --windowed --name PomeloO --icon ../assets/pomeloo.ico --distpath dist --workpath build `
   --specpath build --paths . --collect-all imageio_ffmpeg --collect-all pypandoc `
   --collect-all pillow_heif --collect-all zxingcpp --collect-all pymupdf `
   --collect-submodules pomeloo --collect-submodules winrt --collect-binaries winrt scripts\pomeloo_entry.py

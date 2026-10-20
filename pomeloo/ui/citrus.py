@@ -8,6 +8,65 @@ from PySide6.QtWidgets import QWidget
 SEGMENTS = 12
 
 
+def icon_pixmap(size: int) -> "QPixmap":
+    """App icon: the progress slice with each segment's opacity stepping from transparent to solid."""
+    from PySide6.QtGui import QPixmap
+    pm = QPixmap(size, size)
+    pm.fill(Qt.transparent)
+    g = QPainter(pm)
+    g.setRenderHint(QPainter.Antialiasing)
+    s = float(size)
+    c = QPointF(s / 2, s / 2)
+    R = s / 2 - max(0.5, s * 0.02)
+    rind = QRadialGradient(c - QPointF(R * 0.3, R * 0.3), R * 1.6)
+    rind.setColorAt(0, QColor("#ffb54a"))
+    rind.setColorAt(1, QColor("#e2620a"))
+    g.setPen(Qt.NoPen)
+    g.setBrush(rind)
+    g.drawEllipse(c, R, R)
+    pith = R * 0.9
+    g.setCompositionMode(QPainter.CompositionMode_Clear)  # see-through slice under the segments
+    g.drawEllipse(c, pith, pith)
+    g.setCompositionMode(QPainter.CompositionMode_SourceOver)
+    g.setBrush(QColor("#fff1db"))
+    g.drawEllipse(c, pith, pith)
+    g.setCompositionMode(QPainter.CompositionMode_Clear)
+    flesh = R * 0.84
+    g.drawEllipse(c, flesh, flesh)
+    g.setCompositionMode(QPainter.CompositionMode_SourceOver)
+    hub = max(1.0, R * 0.09)
+    step, gap = 360 / SEGMENTS, (4.0 if s >= 48 else 6.0)
+    juice = QRadialGradient(c, flesh)
+    juice.setColorAt(0.0, QColor("#ffe2a1"))
+    juice.setColorAt(0.45, QColor("#ffa62b"))
+    juice.setColorAt(1.0, QColor("#ff7b00"))
+    for i in range(SEGMENTS):
+        a0 = 90 - (i + 1) * step + gap / 2
+        a1 = 90 - i * step - gap / 2
+        g.setOpacity(i / (SEGMENTS - 1))  # 0 % ... 100 %, clockwise from 12 o'clock
+        g.setBrush(juice)
+        g.drawPath(CitrusProgress._wedge(c, hub, flesh, a0, a1))
+    g.setOpacity(1.0)
+    g.setBrush(QColor("#fff1db"))
+    g.drawEllipse(c, hub, hub)
+    g.end()
+    return pm
+
+
+def write_ico(path):
+    """Multi-size .ico, each size rendered natively so small icons stay crisp."""
+    import io
+    from PIL import Image
+    from PySide6.QtCore import QBuffer, QIODevice
+    images = []
+    for n in (256, 128, 64, 48, 32, 24, 16):
+        buf = QBuffer()
+        buf.open(QIODevice.WriteOnly)
+        icon_pixmap(n).save(buf, "PNG")
+        images.append(Image.open(io.BytesIO(bytes(buf.data()))).convert("RGBA"))
+    images[0].save(path, format="ICO", sizes=[im.size for im in images], append_images=images[1:])
+
+
 class CitrusProgress(QWidget):
     """set_value(0..1) animates toward the target; the next segment pulses while work is running."""
 

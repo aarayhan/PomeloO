@@ -29,7 +29,7 @@ jobs:
 
       - name: Build exe
         run: >
-          pyinstaller --noconfirm --windowed --name PomeloO --distpath dist --workpath build
+          pyinstaller --noconfirm --windowed --name PomeloO --icon ../assets/pomeloo.ico --distpath dist --workpath build
           --specpath build --paths . --collect-all imageio_ffmpeg --collect-all pypandoc
           --collect-all pillow_heif --collect-all zxingcpp --collect-all pymupdf
           --collect-submodules pomeloo --collect-submodules winrt --collect-binaries winrt
