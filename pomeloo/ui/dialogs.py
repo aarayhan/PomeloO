@@ -371,7 +371,22 @@ class ParamDialog(GlassMixin, QDialog):
             self.scrubber.player.stop()
         return v
 
+    def accept(self):
+        g = self.getters
+        if "rects" in g and not g["rects"]() and g.get("auto", lambda: "none")() == "none":
+            from .windows import notice
+            return notice(self, "Nothing to redact", "Drag over the area to hide first."
+                          + (" Or pick Auto-detect / Find faces." if "auto" in g else ""))
+        super().accept()
+
     def done(self, r):
-        if self.scrubber is not None:
-            self.scrubber.player.stop()
+        from PySide6.QtCore import QUrl
+        for p in (getattr(self.scrubber, "player", None), getattr(self, "_player", None)):
+            if p is not None:
+                p.stop()
+                p.setSource(QUrl())
         super().done(r)
+        # Lambdas on child-widget signals capture self, so the dialog sits in a reference cycle and
+        # Python's GC would free it at a random moment, e.g. mid-batch: that crashed the app. Delete
+        # it from the event loop instead (values() is read before control gets back there).
+        self.deleteLater()

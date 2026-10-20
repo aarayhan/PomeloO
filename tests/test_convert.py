@@ -261,6 +261,15 @@ def main():
             except Exception as e:
                 traceback.print_exc()
                 results.append(("FAIL", f"extra {tid} {params}: {e}"))
+        # same stem, run in parallel (a batch of photo.png + photo.webp -> jpg): two outputs, none lost
+        same = d / "same"
+        same.mkdir()
+        srcs = [shutil.copy(fx[e], same / f"photo.{e}") for e in ("png", "webp")]
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(2) as pool:
+            outs = list(pool.map(lambda s: convert(s, "jpg"), srcs))
+        good = len(set(outs)) == 2 and all(ok(o) for o in outs)
+        results.append(("OK" if good else "FAIL", f"parallel same-name outputs {[o.name for o in outs]}"))
     for status, msg in results:
         if status != "OK":
             print(f"{status:5} {msg}")

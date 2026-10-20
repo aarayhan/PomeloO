@@ -4,6 +4,7 @@ One table drives the wheel, the Explorer context menu and the CLI.
 """
 from pathlib import Path
 import re
+import threading
 
 IMAGE_IN = ["jpg", "png", "webp", "heic", "tiff", "svg", "avif", "bmp"]
 IMAGE_OUT = ["jpg", "png", "webp", "heic", "tiff", "avif", "bmp", "pdf"]
@@ -170,16 +171,22 @@ def stem_of(path) -> str:
     return re.sub(r"(?:\.tar\.gz|\.tgz|\.[^.]+)$", "", Path(path).name, flags=re.I)
 
 
+_claimed: set[Path] = set()  # names handed to running jobs that haven't written their file yet
+_claim_lock = threading.Lock()
+
+
 def unique(path: Path) -> Path:
-    """`x.png` -> `x 2.png` -> `x 3.png` ...."""
-    if not path.exists():
-        return path
+    """`x.png` -> `x 2.png` -> `x 3.png` .... Parallel jobs (photo.webp + photo.heic -> jpg) get
+    different names. ponytail: a failed job's claim stays until restart (one skipped number)."""
     name = path.name
     base, suffix = (name[:-7], ".tar.gz") if name.endswith(".tar.gz") else (path.stem, path.suffix)
-    i = 2
-    while (p := path.with_name(f"{base} {i}{suffix}")).exists():
-        i += 1
-    return p
+    with _claim_lock:
+        _claimed.difference_update({c for c in _claimed if c.exists()})  # written: exists() covers it now
+        p, i = path, 2
+        while p.exists() or p in _claimed:
+            p, i = path.with_name(f"{base} {i}{suffix}"), i + 1
+        _claimed.add(p)
+        return p
 
 
 def out_path(src, ext: str, label: str | None = None) -> Path:

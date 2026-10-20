@@ -46,14 +46,14 @@ def ensure() -> Path:
         version = _latest()
         url = f"{BASE}{version}/win/x86_64/LibreOffice_{version}_Win_x86-64.msi"
         expected = urllib.request.urlopen(url + ".sha256", timeout=30).read().decode().split()[0].lower()
-        HOME.mkdir(parents=True, exist_ok=True)
         msi = HOME / f"LibreOffice_{version}.msi.part"
         notify(f"Downloading the slide engine (LibreOffice {version}, about 375 MB, one time)…")
-        digest = hashlib.sha256()
-        with urllib.request.urlopen(url, timeout=60) as r, open(msi, "wb") as f:
-            while chunk := r.read(1 << 20):
-                f.write(chunk)
-                digest.update(chunk)
+        # curl.exe (built into Windows) writes the file, not Python: a Microsoft Store Python would
+        # redirect its own AppData writes into a private sandbox that msiexec can't see.
+        subprocess.run(["curl.exe", "-fsSL", "--retry", "3", "--create-dirs", "-o", str(msi), url],
+                       check=True, timeout=3600, creationflags=subprocess.CREATE_NO_WINDOW)
+        with open(msi, "rb") as f:
+            digest = hashlib.file_digest(f, "sha256")
         if digest.hexdigest() != expected:
             msi.unlink(missing_ok=True)
             raise RuntimeError("The LibreOffice download did not match its official checksum; nothing was installed.")

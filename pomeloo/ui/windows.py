@@ -1,7 +1,9 @@
 """Dark-glass windows: batch progress, settings, and a small message box."""
+import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QCursor
 from PySide6.QtWidgets import (QApplication, QDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QVBoxLayout, QWidget)
@@ -43,26 +45,26 @@ class _Signals(QObject):
     progress = Signal(int, float)    # row, 0..1 (only engines that know their progress report it)
 
 
-class _Job(QRunnable):
-    def __init__(self, row, fn, sig):
-        super().__init__()
-        self.row, self.fn, self.sig = row, fn, sig
+# Plain Python threads rather than QThreadPool + Python QRunnables that Qt deletes behind our back:
+# simpler lifetimes, and crash traces show the job's real Python stack.
+POOL = ThreadPoolExecutor(max_workers=max(2, (os.cpu_count() or 4) // 2), thread_name_prefix="pomeloo-job")
 
-    def run(self):
-        from ..progress import set_reporter
-        last = [-1.0]
 
-        def report(f):  # throttle: one signal per 1 %
-            if f - last[0] >= 0.01 or f >= 1:
-                last[0] = f
-                self.sig.progress.emit(self.row, f)
-        set_reporter(report)
-        try:
-            self.sig.done.emit(self.row, self.fn(), "")
-        except Exception as e:  # surfaced in the window, never swallowed
-            self.sig.done.emit(self.row, None, str(e) or e.__class__.__name__)
-        finally:
-            set_reporter(None)
+def _run_job(row, fn, sig):
+    from ..progress import set_reporter
+    last = [-1.0]
+
+    def report(f):  # throttle: one signal per 1 %
+        if f - last[0] >= 0.01 or f >= 1:
+            last[0] = f
+            sig.progress.emit(row, f)
+    set_reporter(report)
+    try:
+        sig.done.emit(row, fn(), "")
+    except Exception as e:  # surfaced in the window, never swallowed
+        sig.done.emit(row, None, str(e) or e.__class__.__name__)
+    finally:
+        set_reporter(None)
 
 
 PILL = ("background: rgba(24,24,27,215); border: 1px solid rgba(255,255,255,0.10); border-radius: 12px;"
@@ -72,8 +74,6 @@ PILL = ("background: rgba(24,24,27,215); border: 1px solid rgba(255,255,255,0.10
 class ProgressWindow(QWidget):
     """Just the orange: a floating citrus slice that fills with real progress, 'Working…' then 'Done'.
     Results are selected in an already-open Explorer window. If something fails, clicking shows why."""
-    pool = QThreadPool()
-
     def __init__(self, title, jobs):
         super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         from .citrus import CitrusProgress
@@ -94,12 +94,11 @@ class ProgressWindow(QWidget):
         self.sig = _Signals()
         self.sig.done.connect(self._done)
         self.sig.progress.connect(self._progress)
-        self.pool.setMaxThreadCount(max(2, QThreadPool.globalInstance().maxThreadCount() // 2))
         self.adjustSize()
         geo = (QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()).availableGeometry()
         self.move(geo.center().x() - self.width() // 2, geo.bottom() - self.height() - 40)
         for i, (_, fn) in enumerate(jobs):
-            self.pool.start(_Job(i, fn, self.sig))
+            POOL.submit(_run_job, i, fn, self.sig)
         self.show()
 
     def _progress(self, row, f):
