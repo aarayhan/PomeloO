@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import zipfile
 from pathlib import Path
 
@@ -155,10 +156,17 @@ def pages_preview(src: Path, tmp: Path) -> Path:
         return out
 
 
+_SOFFICE_LOCK = threading.Lock()
+
+
 def _soffice_to_pdf(exe, src: Path, tmp: Path) -> Path:
-    profile = (tmp / "lo").as_uri()  # throwaway profile: never touches a running LibreOffice
-    subprocess.run([str(exe), f"-env:UserInstallation={profile}", "--headless", "--convert-to", "pdf",
-                    "--outdir", str(tmp), str(src)], capture_output=True, timeout=600, creationflags=_NOWIN)
+    # PomeloO's own profile: never touches the user's LibreOffice, and reusing it skips the
+    # first-start setup on every conversion. One conversion at a time (a profile can't be shared).
+    from .libreoffice import HOME
+    profile = (HOME.parent / "lo-profile").as_uri()
+    with _SOFFICE_LOCK:
+        subprocess.run([str(exe), f"-env:UserInstallation={profile}", "--headless", "--convert-to", "pdf",
+                        "--outdir", str(tmp), str(src)], capture_output=True, timeout=600, creationflags=_NOWIN)
     out = tmp / f"{src.stem}.pdf"
     if not out.exists():
         raise RuntimeError("LibreOffice could not convert this presentation.")
