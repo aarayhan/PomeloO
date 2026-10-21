@@ -31,7 +31,60 @@ def start_app_detached():
 
 
 def _cmd(*args) -> str:
-    return " ".join(f'"{a}"' for a in launcher()) + " run " + " ".join(args) + ' "%1"'
+    from .native import find
+    quoted = " ".join(f'"{a}"' for a in args)  # recipe names can contain spaces
+    send = find("pomeloo-send.exe")  # C sender: milliseconds instead of a Python boot per file...
+    if send and send.with_name("PomeloO.exe").exists():  # ...but it can only start a built app
+        return f'"{send}" {quoted} "%1"'
+    return " ".join(f'"{a}"' for a in launcher()) + f' run {quoted} "%1"'
+
+
+def is_registered() -> bool:
+    try:
+        winreg.OpenKey(winreg.HKEY_CURRENT_USER, rf"{ROOT}\*\shell\PomeloOActions").Close()
+        return True
+    except OSError:
+        return False
+
+
+RUN = r"Software\Microsoft\Windows\CurrentVersion\Run"
+
+
+def set_autostart(on: bool):
+    """Start PomeloO when the user signs in (per-user Run key, no admin). Rewritten every start so the
+    entry follows the app if its folder moves. Only for the built app: running from source must not
+    put a developer's venv in everyone's sign-in (or replace the installed app's entry)."""
+    if not getattr(sys, "frozen", False):
+        return
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, RUN, 0, winreg.KEY_WRITE) as k:
+        if on:
+            winreg.SetValueEx(k, "PomeloO", 0, winreg.REG_SZ, " ".join(f'"{a}"' for a in launcher()))
+        else:
+            try:
+                winreg.DeleteValue(k, "PomeloO")
+            except FileNotFoundError:
+                pass
+
+
+def compact_install():
+    """Once per build: NTFS-compress our own files with LZX, the compression Windows uses for its own
+    system files (807 MB -> ~280 MB on disk; starts are as fast or faster). Runs at idle priority in
+    the background; files already loaded by this process are skipped (/i) and stay as they are."""
+    if not getattr(sys, "frozen", False):
+        return
+    root = Path(sys.executable).parent
+    stamp = f"{root}|{Path(sys.executable).stat().st_mtime_ns}"
+    mark = APPDIR / "compacted.txt"
+    try:
+        if mark.read_text(encoding="utf-8") == stamp:
+            return
+    except OSError:
+        pass
+    APPDIR.mkdir(parents=True, exist_ok=True)
+    mark.write_text(stamp, encoding="utf-8")
+    subprocess.Popen(["compact.exe", "/c", f"/s:{root}", "/i", "/q", "/exe:lzx", "*"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     creationflags=subprocess.CREATE_NO_WINDOW | subprocess.IDLE_PRIORITY_CLASS)
 
 
 def _key(path, values: dict):
@@ -63,11 +116,15 @@ def _ext_keys():
     return spell
 
 
-def register() -> int:
+def register(recipes=()) -> int:
+    from .recipes import PREFIX, applies
+    unregister()  # start clean so removed tools/recipes don't linger
     n = 0
     for ext, spellings in _ext_keys().items():
         conv = [(t, "GZIP (.tar.gz)" if t == "gz" else t.upper(), _cmd("convert", t)) for t in targets(ext)]
         tls = [(t, TOOLS[t][1], _cmd("tool", t)) for t in dict.fromkeys(tools(ext, 1) + tools(ext, 2))]
+        tls += [(f"r{i}", "★ " + r["name"], _cmd("tool", PREFIX + r["name"]))
+                for i, r in enumerate(recipes) if applies(r, ext)]
         if not conv and not tls:
             continue
         for sp in spellings:

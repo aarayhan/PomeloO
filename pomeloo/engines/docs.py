@@ -128,7 +128,9 @@ def pdf_convert(src: Path, dst: Path, target: str, title: str) -> Path:
             dst.write_text("\n\n".join(p.get_text() for p in fitz.open(src)), encoding="utf-8")
         else:  # md, epub, html go through Markdown
             import pymupdf4llm
-            md = pymupdf4llm.to_markdown(str(src))
+            pymupdf4llm.use_layout(False)  # the ONNX layout model isn't shipped (scripts/build.ps1): same output everywhere
+            with fitz.open(src) as doc:  # closed here: the classic mode leaves a path it opened open
+                md = pymupdf4llm.to_markdown(doc)
             if target == "md":
                 dst.write_text(md, encoding="utf-8")
             else:

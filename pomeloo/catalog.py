@@ -111,10 +111,18 @@ TOOLS = {
     "organizePDF": ("ORGANIZE", "Organize PDF", "Organized", "pdf", False),
     "mergePDF": ("MERGE PDF", "Merge PDFs", "Merged", "pdf", True),
     "extractArchive": ("EXTRACT", "Extract Archive", "Extracted", "folder", False),
+    "extractText": ("TEXT", "Copy Text (OCR)", None, None, False),  # text goes to the clipboard
+    "searchablePDF": ("SEARCHABLE", "Searchable PDF", "Searchable", "pdf", False),
+    "protectPDF": ("LOCK", "Add Password", "Protected", "pdf", False),
+    "unlockPDF": ("UNLOCK", "Remove Password", "Unlocked", "pdf", False),
+    "watermarkPDF": ("WATERMARK", "Add Watermark", "Watermarked", "pdf", False),
+    "numberPDF": ("NUMBERS", "Page Numbers", "Numbered", "pdf", False),
+    "burnSubtitles": ("SUBTITLES", "Burn In Subtitles", "Subtitled", None, False),
 }
 # Tools that still make sense with several files selected.
 MULTI_OK = {"compress", "removeMetadata", "cropImage", "normalizeAudio", "muteVideo", "splitPDF",
-            "extractArchive", "createPDF", "mergePDF", "joinVideos", "createCollage"}
+            "extractArchive", "createPDF", "mergePDF", "joinVideos", "createCollage", "extractText",
+            "searchablePDF", "protectPDF", "unlockPDF", "watermarkPDF", "numberPDF"}
 
 ACTIONS = {
     "share": ("SHARE", "Share", "Share files through the Windows share sheet (AirDrop on Mac)."),
@@ -123,6 +131,8 @@ ACTIONS = {
     "move": ("MOVE", "Move", "Choose a destination folder and move the originals there."),
     "copyPath": ("COPY PATH", "Copy Path", "Copy full paths as text, one per line."),
     "terminal": ("TERMINAL", "Terminal", "Open the folder (or file's folder) in Windows Terminal."),
+    "rename": ("RENAME", "Rename", "Rename in place with a pattern: numbering, date taken, folder name."),
+    "phone": ("PHONE", "Send to Phone", "Show a QR code: your phone downloads these over Wi-Fi and can send files back."),
 }
 
 _PHOTO = ["jpg", "png", "webp", "heic", "tiff", "avif", "bmp"]
@@ -133,9 +143,10 @@ def tools(ext: str, n: int = 1) -> list[str]:
     if n < 1:
         return []
     if ext in _PHOTO:
-        t = (["compress", "removeMetadata", "cropImage", "createPDF", "createCollage"] if n > 1 else
+        t = (["compress", "removeMetadata", "cropImage", "createPDF", "createCollage", "extractText",
+              "searchablePDF"] if n > 1 else
              ["compress", "removeMetadata", "editImage", "annotateImage", "frameImage", "cropImage",
-              "redactImage", "readQR"])
+              "redactImage", "readQR", "extractText", "searchablePDF"])
     elif ext == "svg":
         t = ["createPDF", "createCollage"] if n > 1 else []
     elif ext in AUDIO:
@@ -145,12 +156,13 @@ def tools(ext: str, n: int = 1) -> list[str]:
         t = (["compress", "removeMetadata", "muteVideo", "trimVideo", "cropVideo",
               "changeVideoSpeed", "joinVideos"] if n > 1 else
              ["compress", "removeMetadata", "muteVideo", "trimVideo", "cropVideo",
-              "changeVideoSpeed", "videoSnapshots", "splitVideo", "redactVideo"])
+              "changeVideoSpeed", "videoSnapshots", "splitVideo", "redactVideo", "burnSubtitles"])
     elif ext == "gif":
         t = ["removeMetadata"]
     elif ext == "pdf":
-        t = (["compress", "removeMetadata", "splitPDF", "mergePDF"] if n > 1 else
-             ["compress", "removeMetadata", "splitPDF", "organizePDF"])
+        extra = ["extractText", "searchablePDF", "protectPDF", "unlockPDF", "watermarkPDF", "numberPDF"]
+        t = (["compress", "removeMetadata", "splitPDF", "mergePDF", *extra] if n > 1 else
+             ["compress", "removeMetadata", "splitPDF", "organizePDF", *extra])
     elif ext in ARCHIVES:
         t = ["extractArchive"]
     else:

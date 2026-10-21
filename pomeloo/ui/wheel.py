@@ -76,7 +76,10 @@ class Wheel(QWidget):
         elif mode == "convert":
             self.items = [(t, label_of(t)) for t in targets(ext)]
         else:
-            self.items = [(t, TOOLS[t][0]) for t in tools(ext, len(self.paths))]
+            from ..recipes import PREFIX, applies
+            self.items = [(t, TOOLS[t][0]) for t in tools(ext, len(self.paths))] + [
+                (PREFIX + r["name"], "★ " + r["name"].upper()[:14])
+                for r in self.settings.get("recipes", []) if applies(r, ext)]
         self.hover = 0 if self.keyboard and self.items else None
         self.update()
 
@@ -266,7 +269,8 @@ class Wheel(QWidget):
         if self.hover is not None and n:
             item, title = self.items[self.hover]
             verb = f"make a {title}" if self.mode == "convert" else (
-                f"use {TOOLS[item][1]}" if self.mode == "tools" else ACTIONS[item][1].lower())
+                f"use {TOOLS[item][1] if item in TOOLS else title.lstrip('★ ').title()}" if self.mode == "tools"
+                else ACTIONS[item][1].lower())  # recipes ("recipe:<name>") aren't in TOOLS
             hint = f"{'Press Enter' if self.keyboard else 'Let go'} to {verb}"
         else:
             hint = "   ·   ".join(f"{keys.get(m, '?').capitalize()}  {MODE_NAMES[m]}" for m in MODES)

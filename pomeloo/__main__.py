@@ -19,7 +19,8 @@ def main(argv=None):
     cmd, rest = argv[0], argv[1:]
     if cmd in ("--register", "--unregister"):
         from . import shell
-        n = shell.register() if cmd == "--register" else shell.unregister()
+        from .app import load_settings
+        n = shell.register(load_settings()["recipes"]) if cmd == "--register" else shell.unregister()
         print(f"{'Registered' if cmd == '--register' else 'Removed'} Explorer menu ({n} keys).")
         return 0
     if cmd == "run":

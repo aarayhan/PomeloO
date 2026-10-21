@@ -14,6 +14,7 @@ def S(key, label, lo=-100, hi=100, default=0):
 
 
 PRESETS = {"high quality": 75, "balanced": 50, "smallest": 25}
+TEXT_TOOLS = {"readQR", "extractText"}
 _ASPECTS = ["free", "1:1", "4:5", "4:3", "3:2", "16:9", "9:16", "3:4"]
 # show_if=(param, [values]): the dialog only shows this control while that param has one of the values
 _EXACT = [P("width", "int", 0, "Width", min=0, max=20000, suffix=" px"),
@@ -94,6 +95,21 @@ PARAMS = {
     "mergePDF": [P("files", "files", None, "Document order")],
     "splitPDF": [P("ranges", "text", "", "Page ranges, e.g. 1-3, 5")],
     "organizePDF": [P("order", "pages", None, "Pages")],
+    "protectPDF": [P("password", "password", "", "Password")],
+    "unlockPDF": [P("password", "password", "", "Password")],
+    "watermarkPDF": [P("text", "text", "CONFIDENTIAL", "Text"),
+                     P("size", "int", 70, "Width", min=10, max=100, suffix=" %"),
+                     P("opacity", "int", 25, "Opacity", min=5, max=100, suffix=" %"),
+                     P("angle", "choice", 45, "Angle", options=[0, 45, 90]),
+                     P("color", "color", "#ff0000", "Color")],
+    "numberPDF": [P("style", "choice", "1 / 10", "Style", options=["1", "Page 1", "1 / 10", "Page 1 of 10"]),
+                  P("position", "choice", "bottom center", "Position",
+                    options=["bottom left", "bottom center", "bottom right", "top left", "top center", "top right"]),
+                  P("start", "int", 1, "Start at", min=0, max=99999),
+                  P("size", "int", 10, "Size", min=6, max=36, suffix=" pt")],
+    "burnSubtitles": [P("subtitles", "file", "", "Subtitles", filter="Subtitles (*.srt *.vtt *.ass)",
+                        hint="Uses the .srt with the video's name if you don't pick one"),
+                      P("size", "int", 24, "Text size", min=10, max=72)],
 }
 _SKIP = {"preview", "loudness", "files"}  # UI-only or handled by run_tool
 
@@ -130,6 +146,9 @@ def _fn(tid, ext):
         "videoSnapshots": media.snapshots, "splitVideo": media.split, "redactVideo": media.redact,
         "joinVideos": media.join, "splitPDF": pdf.split, "organizePDF": pdf.organize,
         "mergePDF": pdf.merge, "extractArchive": pdf.extract_archive,
+        "extractText": pdf.extract_text, "searchablePDF": pdf.searchable, "protectPDF": pdf.protect,
+        "unlockPDF": pdf.unlock, "watermarkPDF": pdf.watermark, "numberPDF": pdf.numbers,
+        "burnSubtitles": media.burn_subtitles,
     }[tid]
 
 
@@ -170,7 +189,7 @@ def run_tool(tid: str, paths, params=None) -> list:
     for p in paths:
         ext = ext_of(p)
         fn = _fn(tid, ext)
-        if tid == "readQR":
+        if tid in TEXT_TOOLS:  # results are text for the clipboard, not files
             out.append(fn(p))
             continue
         o = "flac" if tid == "compress" and ext in ("wav", "aiff") else (oext or ext)

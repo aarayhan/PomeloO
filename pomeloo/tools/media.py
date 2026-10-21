@@ -252,6 +252,23 @@ def split(src: Path, folder: Path, parts=2, seconds=0, points=(), precise=True):
     return folder
 
 
+def burn_subtitles(src: Path, dst: Path, subtitles="", size=24):
+    """Subtitles drawn into the picture (for sites that ignore subtitle tracks). Without a chosen file,
+    the .srt/.vtt/.ass with the video's name next to it is used."""
+    import shutil
+    sub = Path(subtitles) if subtitles else next(
+        (p for p in (src.with_name(stem_of(src) + e) for e in (".srt", ".vtt", ".ass")) if p.exists()), None)
+    if not sub or not sub.exists():
+        raise ValueError(f"Choose a subtitle file (or put {stem_of(src)}.srt next to the video).")
+    with tempfile.TemporaryDirectory() as tmp:  # ffmpeg filter syntax and Windows paths don't mix: plain name
+        local = Path(tmp) / f"subs{sub.suffix.lower()}"
+        shutil.copyfile(sub, local)
+        style = f"FontName=Segoe UI,FontSize={int(size)},Outline=2,Shadow=0"
+        ff("-i", Path(src).resolve(), "-vf", f"subtitles={local.name}:force_style='{style}'",
+           *video_only(ext_of(dst)), Path(dst).resolve(), cwd=tmp)
+    return dst
+
+
 def redact(src: Path, dst: Path, rects=(), style="blur", color="#000000", times=()):
     """times[i] = [start, end] limits region i to part of the video (missing/None = whole video)."""
     W, H = probe(src)["size"]

@@ -74,8 +74,9 @@ PILL = ("background: rgba(24,24,27,215); border: 1px solid rgba(255,255,255,0.10
 class ProgressWindow(QWidget):
     """Just the orange: a floating citrus slice that fills with real progress, 'Working…' then 'Done'.
     Results are selected in an already-open Explorer window. If something fails, clicking shows why."""
-    def __init__(self, title, jobs):
+    def __init__(self, title, jobs, on_finish=None):
         super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.on_finish = on_finish  # called once with the output paths (history)
         from .citrus import CitrusProgress
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setToolTip(title)
@@ -91,6 +92,7 @@ class ProgressWindow(QWidget):
         n = len(jobs)
         self.names = [label for label, _ in jobs]
         self.fracs, self.outputs, self.failures, self.left, self.total = [0.0] * n, [], [], n, n
+        self.texts = []
         self.sig = _Signals()
         self.sig.done.connect(self._done)
         self.sig.progress.connect(self._progress)
@@ -112,15 +114,22 @@ class ProgressWindow(QWidget):
             self.failures.append(f"{self.names[row]}: {err}")
         else:
             for r in result if isinstance(result, list) else [result]:
-                if isinstance(r, str):  # e.g. QR text
-                    QApplication.clipboard().setText(r)
-                    notice(self, "QR code", r + "\n\nCopied to the clipboard.", r)
+                if isinstance(r, str):  # QR / OCR text: collected, copied once at the end
+                    self.texts.append(r)
                 elif r:
                     self.outputs.append(Path(r))
         self.citrus.set_value(sum(self.fracs) / self.total)
         if self.left:
             return
         self.citrus.finish()
+        if self.on_finish and self.outputs:
+            self.on_finish(self.outputs)
+        if text := "\n\n".join(t for t in self.texts if t.strip()):
+            QApplication.clipboard().setText(text)
+            preview = text if len(text) < 600 else text[:600] + "…"
+            notice(self, self.toolTip(), preview + "\n\nCopied to the clipboard.", text)
+        elif self.texts:
+            notice(self, self.toolTip(), "No text found.")
         if self.failures:
             self.status.setText(f"Done · {len(self.failures)} failed")
             self.status.setStyleSheet(PILL + " color: #ff8a80;")
@@ -171,12 +180,22 @@ class SettingsDialog(GlassMixin, QDialog):
         self.hotkey.setPlaceholderText("ctrl+shift+space")
         row.addWidget(self.hotkey, 1)
         body.addLayout(row)
-        body.addWidget(muted("Opens the wheel for the files selected in Explorer. Applies after restarting PomeloO."))
+        body.addWidget(muted("Opens the wheel for the files selected in Explorer (or what you copied)."))
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Copy text from screen"))
+        self.ocr_hotkey = QLineEdit(settings["ocr_hotkey"])
+        self.ocr_hotkey.setPlaceholderText("win+ctrl+t")
+        row.addWidget(self.ocr_hotkey, 1)
+        body.addLayout(row)
+        body.addWidget(muted("Drag over any text on screen; it lands on the clipboard. Shortcuts apply after "
+                             "restarting PomeloO."))
         body.addSpacing(4)
         body.addWidget(section("Behavior"))
         self.toggles = {}
         for k, title, desc in (
+                ("start_with_windows", "Start with Windows", "Open PomeloO automatically after you sign in."),
                 ("drag_wheel", "Wheel while dragging", "Tap a key mid-drag in Explorer to open the wheel."),
+                ("paste_images", "Paste images as files", "Ctrl+V in a folder saves a copied picture there."),
                 ("show_pad", "Floating drop pad", "A small target in the corner to drop files on."),
                 ("sound", "Highlight sound", "A soft click as you move across the wheel."),
                 ("fix_whatsapp_overlay", "Fix WhatsApp desktop clicks",
@@ -202,6 +221,7 @@ class SettingsDialog(GlassMixin, QDialog):
             self.error.setText("Each wheel needs its own key.")
             return
         self._result = {**self.s, "keys": keys, "hotkey": self.hotkey.text().strip().lower() or "ctrl+shift+space",
+                        "ocr_hotkey": self.ocr_hotkey.text().strip().lower() or "win+ctrl+t",
                         **{k: t.isChecked() for k, t in self.toggles.items()}}
         self.accept()
 

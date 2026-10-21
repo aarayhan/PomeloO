@@ -154,19 +154,26 @@ class ParamDialog(GlassMixin, QDialog):
             w = Toggle(d)
             w.toggled.connect(self._live)
             self.getters[key] = w.isChecked
-        elif t == "text":
+        elif t in ("text", "password"):
             w = QLineEdit(d)
-            w.setPlaceholderText("Every page")
+            if t == "password":
+                w.setEchoMode(QLineEdit.Password)
+                w.setPlaceholderText("Type it here")
+            else:
+                w.setPlaceholderText("Every page")
             self.getters[key] = w.text
         elif t == "color":
             w = Swatch(d)
             self.getters[key] = lambda w=w: w.color
         elif t == "file":
-            w, chosen = QPushButton("Choose image…"), {"path": d}
+            filt = p.get("filter", "Images (*.png *.jpg *.jpeg *.webp *.heic *.bmp *.tiff)")
+            w, chosen = QPushButton(f"Choose {filt.split()[0].lower().rstrip('s')}…"), {"path": d}
             w.setCursor(Qt.PointingHandCursor)
+            if p.get("hint"):
+                w.setToolTip(p["hint"])
 
             def pick():
-                f = QFileDialog.getOpenFileName(self, p["label"], "", "Images (*.png *.jpg *.jpeg *.webp *.heic *.bmp *.tiff)")[0]
+                f = QFileDialog.getOpenFileName(self, p["label"], "", filt)[0]
                 if f:
                     chosen["path"] = f
                     w.setText(Path(f).name)

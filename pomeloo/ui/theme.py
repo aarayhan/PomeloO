@@ -180,6 +180,15 @@ def muted(text: str) -> QLabel:
     return lab
 
 
+def button(text: str, on_click, primary=False) -> QPushButton:
+    b = QPushButton(text)
+    b.setCursor(Qt.PointingHandCursor)
+    if primary:
+        b.setObjectName("primary")
+    b.clicked.connect(on_click)
+    return b
+
+
 def footer(primary_text: str, on_primary, on_cancel, cancel_text="Cancel") -> QHBoxLayout:
     row = QHBoxLayout()
     row.addStretch()

@@ -78,6 +78,14 @@ class CitrusProgress(QWidget):
         self._timer = QTimer(self, interval=16, timeout=self._tick)
         self._timer.start()
 
+    def hideEvent(self, e):  # a closed progress window must not keep animating (idle CPU)
+        self._timer.stop()
+        super().hideEvent(e)
+
+    def showEvent(self, e):
+        self._timer.start()
+        super().showEvent(e)
+
     def set_value(self, v: float):
         self.target = min(1.0, max(0.0, v))
 

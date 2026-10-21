@@ -161,6 +161,8 @@ def validate(p):
         assert any(w in _text(p, e).lower() for w in WORDS), "content lost"
     if e == "pdf":  # image-only PDFs (from photos) have no text, so only check that it renders
         doc = fitz.open(p)
+        if doc.needs_pass:  # protectPDF output: must open with the test password
+            assert doc.authenticate(TOOL_PARAMS["protectPDF"]["password"]), "password does not open it"
         assert doc.page_count >= 1
         doc[0].get_pixmap(dpi=20)  # renders
     return True
@@ -186,7 +188,36 @@ TOOL_PARAMS = {
     "trimVideo": {"start": 0.5, "end": 2.0},
     "organizePDF": {"order": [1, 0, 0], "rotations": {"2": 90}},  # reorder + duplicate + rotate
     "removeMetadata": {"mode": "remove"},
+    "protectPDF": {"password": "secret"},
 }
+
+
+def feature_checks(d: Path, fx: dict) -> dict:
+    """The newer tools, checked for what they promise rather than just 'the output opens'."""
+    from PIL import ImageFont
+    words = d / "words.png"
+    im = Image.new("RGB", (900, 260), "white")
+    ImageDraw.Draw(im).text((40, 70), "PomeloO 2026", fill="black", font=ImageFont.truetype("arial.ttf", 110))
+    im.save(words)
+    c = {"OCR reads an image": "pomelo" in run_tool("extractText", [words])[0].lower()}
+    c["searchable PDF can be searched"] = bool(fitz.open(run_tool("searchablePDF", [words])[0])[0].search_for("PomeloO"))
+    locked = fitz.open(run_tool("protectPDF", [fx["pdf"]], {"password": "secret"})[0])
+    c["password is set"] = locked.needs_pass and not locked.authenticate("wrong")
+    unlocked = run_tool("unlockPDF", [locked.name], {"password": "secret"})[0]
+    c["password is removed"] = not fitz.open(unlocked).needs_pass
+    try:
+        run_tool("unlockPDF", [locked.name], {"password": "nope"})
+        c["wrong password is refused"] = False
+    except ValueError:
+        c["wrong password is refused"] = True
+    c["watermark is on the page"] = "DRAFT" in fitz.open(run_tool("watermarkPDF", [fx["pdf"]], {"text": "DRAFT"})[0])[0].get_text()
+    doc = fitz.open(run_tool("numberPDF", [fx["pdf"]], {"style": "Page 1 of 10"})[0])
+    c["page numbers are on the page"] = f"Page 1 of {doc.page_count}" in doc[0].get_text()
+    for pos in ("top right", "bottom left"):  # big numbers must stay inside the page
+        page = fitz.open(run_tool("numberPDF", [fx["pdf"]], {"size": 36, "position": pos})[0])[0]
+        hits = page.search_for("1 /")
+        c[f"36 pt numbers fit ({pos})"] = bool(hits) and page.rect.contains(hits[0])
+    return c
 
 
 # Extra option combinations for the tool windows (docs/features.md "Tool details").
@@ -261,6 +292,12 @@ def main():
             except Exception as e:
                 traceback.print_exc()
                 results.append(("FAIL", f"extra {tid} {params}: {e}"))
+        try:
+            for name, good in feature_checks(d, fx).items():
+                results.append(("OK" if good else "FAIL", f"feature: {name}"))
+        except Exception as e:
+            traceback.print_exc()
+            results.append(("FAIL", f"feature checks: {e}"))
         # same stem, run in parallel (a batch of photo.png + photo.webp -> jpg): two outputs, none lost
         same = d / "same"
         same.mkdir()
