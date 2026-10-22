@@ -17,7 +17,7 @@ if ($NativeOnly) { return }
 & $Python -m PyInstaller --noconfirm --windowed --name PomeloO --icon ../assets/pomeloo.ico `
     --distpath dist --workpath build --specpath build --paths . `
     --collect-all imageio_ffmpeg --collect-all pypandoc --collect-all pillow_heif --collect-all zxingcpp `
-    --collect-all pymupdf --collect-submodules pomeloo --collect-submodules winrt --collect-binaries winrt `
+    --collect-all pymupdf --collect-submodules pomeloo --collect-data pomeloo --collect-submodules winrt --collect-binaries winrt `
     --exclude-module pymupdf.layout --exclude-module onnxruntime `
     --exclude-module tkinter --exclude-module pdf2docx.gui `
     scripts/pomeloo_entry.py

@@ -50,6 +50,8 @@ Name: "{autodesktop}\PomeloO"; Filename: "{app}\PomeloO.exe"; Tasks: desktopicon
 [Run]
 Filename: "{app}\PomeloO.exe"; Parameters: "--register"; Flags: runhidden waituntilterminated; Tasks: explorermenu; StatusMsg: "Adding the right-click menu..."
 Filename: "{app}\PomeloO.exe"; Description: "Start PomeloO now"; Flags: nowait postinstall skipifsilent
+; silent installs (winget, upgrades) closed the running app: start it again
+Filename: "{app}\PomeloO.exe"; Flags: nowait; Check: WizardSilent
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM PomeloO.exe"; Flags: runhidden; RunOnceId: "StopApp"
