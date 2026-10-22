@@ -7,7 +7,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write  # attach the zip to releases on version tags
+  contents: write  # publish the release on version tags
 
 jobs:
   windows:
@@ -24,26 +24,46 @@ jobs:
       - name: Install
         run: python -m pip install -e . pyinstaller ziglang
 
+      - name: Version matches the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $v = (python -c "import pomeloo; print(pomeloo.__version__)").Trim()
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "tag ${{ github.ref_name }} but pomeloo.__version__ is $v" }
+
       - name: Test (every conversion pair and tool, outputs opened and validated)
         run: python tests/test_convert.py
 
-      - name: Build exe (C helpers + app)
-        shell: pwsh
-        run: ./scripts/build.ps1 -Python python
-
-      - name: Package
+      - name: Inno Setup
         shell: pwsh
         run: |
-          Copy-Item LICENSE, THIRD_PARTY_NOTICES.md, README.md dist/PomeloO/
-          Compress-Archive -Path dist/PomeloO/* -DestinationPath PomeloO-windows.zip
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+
+      - name: Build app, C helpers and installer
+        shell: pwsh
+        run: ./scripts/build.ps1 -Python python -Installer
+
+      - name: Package
+        id: pkg
+        shell: pwsh
+        run: |
+          $v = (python -c "import pomeloo; print(pomeloo.__version__)").Trim()
+          Compress-Archive -Path dist/PomeloO/* -DestinationPath "dist/PomeloO-$v-portable.zip"
+          "version=$v" >> $env:GITHUB_OUTPUT
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PomeloO-windows
-          path: PomeloO-windows.zip
+          name: PomeloO-${{ steps.pkg.outputs.version }}
+          path: |
+            dist/PomeloO-Setup-${{ steps.pkg.outputs.version }}.exe
+            dist/PomeloO-${{ steps.pkg.outputs.version }}-portable.zip
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: PomeloO-windows.zip
+          name: PomeloO ${{ steps.pkg.outputs.version }}
+          body_path: .github/RELEASE.md
+          files: |
+            dist/PomeloO-Setup-${{ steps.pkg.outputs.version }}.exe
+            dist/PomeloO-${{ steps.pkg.outputs.version }}-portable.zip

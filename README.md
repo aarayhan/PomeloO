@@ -22,10 +22,15 @@ See [docs/features.md](docs/features.md) for the full list.
 
 ## Install
 
-1. Download `PomeloO-windows.zip` from [Releases](../../releases) and unzip it anywhere.
-2. Run `PomeloO.exe`. It lives in the tray (orange icon) and starts with Windows from then on. On first
-   start it compresses its own folder with Windows' file compression (about 690 MB → 240 MB on disk).
-3. Optional: tray menu → **Add to Explorer menu** for the right-click menu.
+1. Download **`PomeloO-Setup-x.y.z.exe`** from [Releases](../../releases/latest) and run it. No admin rights
+   needed: it installs for your user, adds a Start menu entry and (optional) the Explorer right-click menu.
+2. Windows may say *"Windows protected your PC"* because the installer isn't code-signed: **More info →
+   Run anyway**.
+3. PomeloO lives in the tray (orange icon) and starts with Windows. On first start it compresses its own
+   folder with Windows' file compression (about 690 MB → 240 MB on disk).
+
+No installer wanted? `PomeloO-x.y.z-portable.zip` runs from any folder (tray → **Add to Explorer menu**
+for the right-click menu). Uninstall from Settings → Apps; that also removes the menu and autostart.
 
 Requires Windows 10 1809+ or Windows 11, 64-bit.
 
@@ -59,6 +64,7 @@ uv pip install --python .venv\Scripts\python.exe -e . pyinstaller ziglang
 powershell -File scripts\build.ps1 -NativeOnly         # C helpers only (needed to run from source)
 .venv\Scripts\python.exe -m pomeloo                    # run the tray app from source
 powershell -File scripts\build.ps1                     # full build -> dist\PomeloO
+powershell -File scripts\build.ps1 -Installer          # + dist\PomeloO-Setup-<version>.exe (Inno Setup 6)
 ```
 
 `native\` holds two small C helpers, compiled with `zig cc` (installed by pip, no Visual Studio):

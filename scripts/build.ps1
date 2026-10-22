@@ -1,6 +1,6 @@
 # Builds dist\PomeloO: the C helpers (native\), then the one-folder PyInstaller app, then drops
 # libraries PomeloO never loads. Used locally and by CI:  powershell -File scripts\build.ps1
-param([string]$Python = ".venv\Scripts\python.exe", [switch]$NativeOnly)
+param([string]$Python = ".venv\Scripts\python.exe", [switch]$NativeOnly, [switch]$Installer)
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot)
 
@@ -34,4 +34,16 @@ Remove-Item -Recurse -Force -ErrorAction SilentlyContinue `
     "$q\Qt6Pdf.dll", "$q\plugins\platforminputcontexts", "$q\plugins\imageformats\qpdf.dll", `
     "$i\cv2\opencv_videoio_ffmpeg*.dll"
 Copy-Item native\bin\pomeloo-send.exe, native\bin\pomeloo_native.dll dist\PomeloO\
+Copy-Item LICENSE, THIRD_PARTY_NOTICES.md, README.md dist\PomeloO\  # licenses travel with every copy
 "Built dist\PomeloO ({0:n0} MB)" -f ((Get-ChildItem dist\PomeloO -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
+
+if ($Installer) {  # dist\PomeloO-Setup-<version>.exe (Inno Setup 6: winget install JRSoftware.InnoSetup)
+    $version = (& $Python -c "import pomeloo; print(pomeloo.__version__)").Trim()
+    $iscc = @($env:ISCC, "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
+            Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    if (-not $iscc) { throw "Inno Setup 6 not found (winget install JRSoftware.InnoSetup)" }
+    & $iscc /Q "/DAppVersion=$version" scripts\installer.iss
+    if ($LASTEXITCODE) { throw "Inno Setup failed" }
+    "Built dist\PomeloO-Setup-$version.exe ({0:n0} MB)" -f ((Get-Item "dist\PomeloO-Setup-$version.exe").Length / 1MB)
+}
