@@ -7,6 +7,7 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QLineEdit, QScrollArea, QSpinBox,
                                QVBoxLayout, QWidget)
 
+from ..actions import select_in_explorer
 from .theme import GlassMixin, button, footer, muted, section
 
 
@@ -109,7 +110,7 @@ class HistoryDialog(GlassMixin, QDialog):
             text.addWidget(muted(f"{e['time']} · {names}"))
             lay.addLayout(text, 1)
             if existing := [f for f in files if Path(f).exists()]:
-                lay.addWidget(button("Show", lambda _=False, f=existing[0]: subprocess.Popen(["explorer", "/select,", f])))
+                lay.addWidget(button("Show", lambda _=False, f=existing[0]: select_in_explorer(f)))
             if e["outputs"] or e["renames"]:
                 lay.addWidget(button("Undo", lambda _=False, k=e.get("key"): self._undo(k)))
             if e["kind"] in ("convert", "tool"):

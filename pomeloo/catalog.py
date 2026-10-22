@@ -187,6 +187,14 @@ _claimed: set[Path] = set()  # names handed to running jobs that haven't written
 _claim_lock = threading.Lock()
 
 
+def size_text(n: float) -> str:
+    """1536 -> '1.5 KB'."""
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+
+
 def unique(path: Path) -> Path:
     """`x.png` -> `x 2.png` -> `x 3.png` .... Parallel jobs (photo.webp + photo.heic -> jpg) get
     different names. ponytail: a failed job's claim stays until restart (one skipped number)."""

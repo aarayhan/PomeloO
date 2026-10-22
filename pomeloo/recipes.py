@@ -57,45 +57,72 @@ def run(recipe: dict, src, out_dir=None) -> list[Path]:
         return [Path(shutil.move(str(p), str(unique(out_dir / p.name)))) for p in cur]
 
 
-class Watcher:
-    """Runs recipes on files that appear in their watch folders (not on what was already there).
-    Results go to <folder>\\Done, so they never retrigger. A file is picked up once its size has
-    stopped changing (copies in progress are left alone)."""
+class NewFiles:
+    """Calls on_new(path, folder) for files that appear in the watched folders (never for what was
+    already there), once their size has stopped changing; partial downloads are ignored. Used for
+    recipe watch folders and for the notch's Downloads suggestions."""
+    PARTIAL = (".part", ".tmp", ".crdownload", ".download", ".partial")
 
-    def __init__(self, start_job):
+    def __init__(self, on_new):
         from PySide6.QtCore import QFileSystemWatcher, QTimer
-        self.start_job = start_job  # start_job(recipe, path, out_dir)
+        self.on_new = on_new
         self.fs = QFileSystemWatcher()
         self.fs.directoryChanged.connect(lambda _: self.timer.start())
         self.timer = QTimer(singleShot=True, interval=1500, timeout=self._scan)
-        self.recipes, self.seen, self.sizes = [], set(), {}
+        self.folders, self.seen, self.sizes, self.tries = [], set(), {}, {}
 
-    def set_recipes(self, recipes):
+    def set_folders(self, folders):
         if self.fs.directories():
             self.fs.removePaths(self.fs.directories())
-        self.recipes = [r for r in recipes if r.get("watch") and Path(r["watch"]).is_dir()]
-        for r in self.recipes:
-            self.fs.addPath(r["watch"])
-            self.seen |= {str(p) for p in Path(r["watch"]).iterdir()}  # existing files are left alone
+        self.folders = [Path(f) for f in dict.fromkeys(folders) if f and Path(f).is_dir()]
+        for f in self.folders:
+            self.fs.addPath(str(f))
+            self.seen |= {str(p) for p in f.iterdir()}
 
     def _scan(self):
         pending = False
-        for r in self.recipes:
-            for p in Path(r["watch"]).iterdir():
+        for f in self.folders:
+            for p in f.iterdir():
                 key = str(p)
-                if key in self.seen or not p.is_file() or p.suffix.lower() in (".part", ".tmp", ".crdownload"):
+                try:
+                    if key in self.seen or not p.is_file() or p.suffix.lower() in self.PARTIAL:
+                        continue
+                    size = p.stat().st_size
+                except OSError:  # removed while we looked (a temp file): skip, keep scanning
                     continue
-                size = p.stat().st_size
-                if self.sizes.get(key) != size:  # still being written: look again shortly
-                    self.sizes[key] = size
+                if (size == 0 or self.sizes.get(key) != size) and self.tries.get(key, 0) < 40:
+                    self.sizes[key] = size  # empty placeholder or still being written: look again (~1 min max)
+                    self.tries[key] = self.tries.get(key, 0) + 1
                     pending = True
+                    continue
+                self.tries.pop(key, None)
+                if size == 0:  # stayed empty: not a download, leave it alone
+                    self.seen.add(key)
                     continue
                 self.seen.add(key)
                 self.sizes.pop(key, None)
-                if applies(r, ext_of(p)):
-                    self.start_job(r, p, Path(r["watch"]) / "Done")
+                self.on_new(p, f)
         if pending:
             self.timer.start()
+
+
+class Watcher:
+    """Runs recipes on files that appear in their watch folders. Results go to <folder>\\Done, so they
+    never retrigger."""
+
+    def __init__(self, start_job):
+        self.start_job = start_job  # start_job(recipe, path, out_dir)
+        self.recipes = []
+        self.new = NewFiles(self._new)
+
+    def set_recipes(self, recipes):
+        self.recipes = [r for r in recipes if r.get("watch") and Path(r["watch"]).is_dir()]
+        self.new.set_folders([r["watch"] for r in self.recipes])
+
+    def _new(self, path, folder):
+        for r in self.recipes:
+            if Path(r["watch"]) == folder and applies(r, ext_of(path)):
+                self.start_job(r, path, folder / "Done")
 
 
 if __name__ == "__main__":  # self-check: a 3-step chain leaves exactly one result, intermediates gone

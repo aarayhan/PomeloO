@@ -17,7 +17,16 @@ Requires Windows 10 (1809+) or Windows 11, 64-bit.
 | Select files, press **Ctrl+Shift+Space** | wheel with the keyboard (no selection: what you copied) |
 | **Win+Ctrl+T**, drag over the screen | copy any text (or QR code) you can see |
 | Copy an image, **Ctrl+V** in a folder | save it there as a PNG |
+| Drag a file to the **top of the screen** | the notch's drop zones: convert, shelf, phone, fit for WhatsApp / email / web |
+| Hover the **notch** (top centre) | shelf, jobs, clipboard, recent results, phone |
 | Tray icon | Receive from phone, Recipes, History, Settings |
+
+## New in 1.1: the notch
+A black pill at the top of the screen. Hover it for your **shelf** (files kept handy; Shift+drag drops
+them converted), **jobs** (progress, cancel, size saved), **clipboard** history, **recent** results with
+undo and the **phone** QR code. Drag a file to the top and it becomes **drop zones**: convert, shelf,
+phone, *Fit WhatsApp / Email / Web* and your recipes. New downloads and copied screenshots get one-click
+ideas. It hides for full-screen apps and never shows in screen sharing. Settings → Notch to adjust.
 
 ## What's inside
 - 275+ conversions: images (incl. HEIC, AVIF, SVG), audio, video, GIF, PDF, Word, Markdown, EPUB, slides, spreadsheets, subtitles, archives (incl. RAR).

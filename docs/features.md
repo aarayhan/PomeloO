@@ -87,6 +87,22 @@ Move (choose folder), Copy Path (one path per line), Terminal (Windows Terminal 
 Rename (pattern with {name} {n} {n:03} {date} {time} {folder}, live preview), Send to Phone (QR code:
 the phone downloads the files over Wi-Fi and can send files back to Downloads\PomeloO).
 
+## Notch
+A black pill at the top centre of the screen (Settings → Notch: position, which screen, which parts).
+- **Hover** opens a small panel: **Jobs** (progress of every conversion, Cancel, size saved, Show),
+  **Shelf** (files you park there, kept across restarts; drag them out anywhere, Shift+drag drops them
+  converted: PNG→JPG, DOCX→PDF, MKV→MP4…; hover for a preview), **Clipboard** (the last six things you
+  copied, never saved to disk, password-manager content skipped), **Recent** (latest results + Undo),
+  **Phone** (the QR code to send/receive, right in the notch), and **Copy text from screen**.
+- **Drag a file from Explorer to the top of the screen** and the notch turns into drop zones: convert
+  to the usual formats, Tools…, Actions…, Shelf, Phone, **Fit WhatsApp** (photos ~1 MB, video/PDF under
+  16 MB), **Fit Email** (under 25 MB), **Fit Web** (WebP ≤1920 px, ~300 KB) and your ★ recipes.
+- **Ideas**: a new file in Downloads gets one-click next steps (HEIC → JPG, MKV → MP4, big PDF →
+  compress…); a copied screenshot can be saved as a file, read (OCR), annotated or sent to the phone.
+- Notices (done, size saved, files from the phone) appear in the notch instead of Windows balloons.
+- It steps aside for full-screen apps, games and presentations, never appears in screenshots or screen
+  sharing, and skips its animation on battery saver. Float uses the notch's shelf when the notch is on.
+
 ## History
 Tray → History lists recent jobs: Show, Undo (results go to the Recycle Bin, renames are reversed) and
 Again (same files, same settings). Passwords are never stored.

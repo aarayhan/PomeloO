@@ -10,14 +10,18 @@
  */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <shellapi.h>
 #include <stdlib.h>
 
-enum { EV_KEY = 1, EV_UP = 2, EV_PASTE = 3 };  /* EV_PASTE: Ctrl+V in an Explorer folder / the desktop */
+enum { EV_KEY = 1, EV_UP = 2, EV_PASTE = 3, EV_DRAG_TOP = 4, EV_QUIET = 5 };
+/* EV_PASTE: Ctrl+V in an Explorer folder / the desktop. EV_DRAG_TOP: a file dragged from Explorer reached
+ * the top edge of a monitor (the notch opens its drop zones). EV_QUIET(1/0): a full-screen app, game or
+ * presentation started/ended (the notch hides). */
 typedef void (*pomeloo_cb)(int event, int key);  /* Qt reads the cursor itself (DPI scaling) */
 
 static pomeloo_cb callback;
 static volatile LONG stopping;  /* set at exit: no callbacks into a Python that is shutting down */
-static volatile LONG drag_on = 1, overlay_on = 1, paste_on = 1;
+static volatile LONG drag_on = 1, overlay_on = 1, paste_on = 1, notch_on = 0;
 static const int VK[3] = {VK_SHIFT, VK_CONTROL, VK_MENU};  /* key index: 0 shift, 1 ctrl, 2 alt */
 
 static void emit(int event, int key) {
@@ -50,6 +54,17 @@ static int paste_into_folder(void) {
     return !lstrcmpW(cls, L"DirectUIHWND") || !lstrcmpW(cls, L"SysListView32") || !lstrcmpW(cls, L"SHELLDLL_DefView");
 }
 
+static int near_top(POINT p) {
+    MONITORINFO mi = {sizeof mi};
+    return GetMonitorInfoW(MonitorFromPoint(p, MONITOR_DEFAULTTONEAREST), &mi) && p.y - mi.rcMonitor.top < 40;
+}
+
+static int quiet_now(void) {
+    QUERY_USER_NOTIFICATION_STATE st;
+    if (SHQueryUserNotificationState(&st) != S_OK) return 0;
+    return st == QUNS_BUSY || st == QUNS_RUNNING_D3D_FULL_SCREEN || st == QUNS_PRESENTATION_MODE;
+}
+
 static BOOL CALLBACK fix_overlay(HWND h, LPARAM screen) {
     wchar_t cls[32], title[256];
     if (!IsWindowVisible(h) || !GetClassNameW(h, cls, 32) || lstrcmpW(cls, L"Chrome_WidgetWin_1")) return TRUE;
@@ -67,13 +82,17 @@ static BOOL CALLBACK fix_overlay(HWND h, LPARAM screen) {
 }
 
 static DWORD WINAPI loop(LPVOID unused) {
-    int lb = 0, armed = 0, from_files = 0, prev[3] = {0}, v = 0;
+    int lb = 0, armed = 0, from_files = 0, prev[3] = {0}, v = 0, topped = 0, quiet = 0;
     POINT start = {0}, p;
     for (unsigned tick = 0; !stopping; tick++) {
         Sleep(25);
         if (overlay_on && tick % 80 == 0) {  /* every 2 s */
             LONGLONG screen = (LONGLONG)GetSystemMetrics(SM_CXSCREEN) * GetSystemMetrics(SM_CYSCREEN);
             EnumWindows(fix_overlay, (LPARAM)screen);
+        }
+        if (notch_on && tick % 40 == 0) {  /* every second: tell Python only when it changes */
+            int q = quiet_now();
+            if (q != quiet) emit(EV_QUIET, quiet = q);
         }
         int now_lb = down(VK_LBUTTON), now[3];
         GetCursorPos(&p);
@@ -87,6 +106,11 @@ static DWORD WINAPI loop(LPVOID unused) {
             from_files = from_file_source();
             armed = drag_on && from_files;
             for (int k = 0; k < 3; k++) prev[k] = now[k];
+            topped = 0;
+        } else if (now_lb && from_files && notch_on && !topped && abs(p.x - start.x) + abs(p.y - start.y) > 12
+                   && near_top(p)) {
+            emit(EV_DRAG_TOP, -1);
+            topped = 1;
         } else if (now_lb && armed && abs(p.x - start.x) + abs(p.y - start.y) > 12) {
             int held = now[0] + now[1] + now[2], tapped = -1;
             for (int k = 0; k < 3; k++)
@@ -109,6 +133,8 @@ __declspec(dllexport) int pomeloo_start(pomeloo_cb cb) {
     CloseHandle(t);
     return 1;
 }
+
+__declspec(dllexport) void pomeloo_notch(int on) { InterlockedExchange(&notch_on, on); }
 
 __declspec(dllexport) void pomeloo_stop(void) { InterlockedExchange(&stopping, 1); }
 

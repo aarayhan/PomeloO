@@ -12,9 +12,9 @@ from ctypes import wintypes
 from functools import partial
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QPointF, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QCursor, QIcon, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QApplication, QDialog, QMenu, QSystemTrayIcon, QWidget
+from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtGui import QAction, QCursor, QIcon, QPixmap
+from PySide6.QtWidgets import QApplication, QDialog, QMenu, QSystemTrayIcon
 
 from .catalog import ACTIONS, TOOLS
 from .shell import APPDIR, ICON, start_app_detached
@@ -24,7 +24,10 @@ SETTINGS = APPDIR / "settings.json"
 TICK = APPDIR / "tick.wav"
 DEFAULTS = {"keys": {"shift": "convert", "ctrl": "tools", "alt": "actions"}, "hotkey": "ctrl+shift+space",
             "drag_wheel": True, "show_pad": True, "sound": True, "fix_whatsapp_overlay": True,
-            "start_with_windows": True, "recipes": [], "ocr_hotkey": "win+ctrl+t", "paste_images": True}
+            "start_with_windows": True, "recipes": [], "ocr_hotkey": "win+ctrl+t", "paste_images": True,
+            "notch": True, "notch_position": "center", "notch_screen": "primary", "notch_progress": True,
+            "notch_downloads": True, "notch_screenshots": True, "notch_clipboard": True, "notch_recent": True,
+            "notch_phone": True}
 user32 = ctypes.windll.user32
 
 
@@ -155,68 +158,6 @@ def hotkey_loop(specs: dict, bridge: Bridge):
             bridge.hotkey.emit(int(msg.wParam))
 
 
-class DropPad(QWidget):
-    """Small always-on-top target: drop files on it to open the wheel (no key tapping needed)."""
-
-    def __init__(self, app):
-        super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        self.app, self._grab = app, None
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setAcceptDrops(True)
-        self.setFixedSize(68, 68)
-        self.setToolTip("PomeloO: drop files here. Right-click for the menu.")
-        self.hot, self.fruit = False, logo(40)
-        geo = QApplication.primaryScreen().availableGeometry()
-        self.move(geo.right() - 88, geo.bottom() - 98)
-
-    def paintEvent(self, _):
-        g = QPainter(self)
-        g.setRenderHint(QPainter.Antialiasing)
-        c = QPointF(34, 34)
-        g.setPen(Qt.NoPen)
-        g.setBrush(QColor(0, 0, 0, 70))  # soft shadow
-        g.drawEllipse(c + QPointF(0, 2), 29, 29)
-        if self.hot:  # glow ring when hovered or a file is over it
-            g.setBrush(QColor(255, 138, 0, 90))
-            g.drawEllipse(c, 33, 33)
-        g.setBrush(QColor(28, 28, 31, 230))
-        g.setPen(QPen(QColor(255, 255, 255, 40), 1))
-        g.drawEllipse(c, 28, 28)
-        g.drawPixmap(14, 15, self.fruit)
-        g.end()
-
-    def enterEvent(self, e):
-        self.hot = True
-        self.update()
-
-    def leaveEvent(self, e):
-        self.hot = False
-        self.update()
-
-    def dragLeaveEvent(self, e):
-        self.leaveEvent(e)
-
-    def dragEnterEvent(self, e):
-        self.enterEvent(e)
-        if e.mimeData().hasUrls():
-            e.acceptProposedAction()
-            mode = self.app.wheel.mode_for_modifiers(e.modifiers()) or "convert"
-            self.app.wheel.open_drag(self.mapToGlobal(self.rect().center()), mode)
-
-    def mousePressEvent(self, e):
-        if e.button() == Qt.RightButton:
-            self.app.menu.popup(e.globalPosition().toPoint())
-        else:
-            self._grab = e.globalPosition().toPoint() - self.pos()
-
-    def mouseMoveEvent(self, e):
-        if self._grab is not None:
-            self.move(e.globalPosition().toPoint() - self._grab)
-
-    def mouseReleaseEvent(self, e):
-        self._grab = None
-
-
 # ---------- app ----------
 class App(QObject):
     def __init__(self, qapp):
@@ -249,11 +190,14 @@ class App(QObject):
             self.tray.showMessage("PomeloO", "Native helpers not built (scripts/build.ps1): no wheel while dragging.")
         from .engines import libreoffice
         libreoffice.notify = self.bridge.notice.emit
-        self.bridge.notice.connect(lambda m: self.tray.showMessage("PomeloO", m))
+        self.bridge.notice.connect(self.notify)
         threading.Thread(target=hotkey_loop, daemon=True, args=(  # after the tray: it may report a clash
             {HOTKEY_WHEEL: self.settings["hotkey"], HOTKEY_TEXT: self.settings["ocr_hotkey"]}, self.bridge)).start()
+        from .ui.droppad import DropPad
         self.pad = DropPad(self)
         self.pad.setVisible(self.settings["show_pad"])
+        self.notch = None
+        self._set_notch()
 
     def tick(self):
         if self.settings["sound"]:
@@ -296,15 +240,43 @@ class App(QObject):
             from . import native, shell
             native.configure(self.native, s["drag_wheel"], s["fix_whatsapp_overlay"], s["paste_images"])
             shell.set_autostart(s["start_with_windows"])
-            self.tray.showMessage("PomeloO", "Saved. A new hotkey applies after restarting PomeloO.")
+            self._set_notch()
+            self.notify("Saved. A new shortcut applies after restarting PomeloO.")
+
+    def _set_notch(self):
+        """Create, update or hide the notch to match the settings."""
+        from . import native
+        on = self.settings["notch"]
+        native.notch(self.native, on)
+        if on and self.notch is None:
+            from .ui.notch import Notch
+            self.notch = Notch(self)
+        elif self.notch is not None:
+            self.notch.apply_settings()
+            self.notch.setVisible(on and not self.notch.quiet)
+
+    def _notch_on(self) -> bool:
+        return self.notch is not None and self.settings["notch"]
+
+    def notify(self, message: str):
+        if not (self._notch_on() and self.notch.isVisible() and self.notch.toast(message, 5000)):
+            self.tray.showMessage("PomeloO", message)
+
+    def reveal_new(self, path):
+        from .actions import select_in_explorer
+        select_in_explorer(path)
 
     def on_drag(self, event: int, key: int):
         """Drag gesture from the native watcher: a modifier tapped mid-drag opens that wheel under the
         cursor (it becomes the drop target); releasing the button closes a wheel nobody dropped on."""
-        from .native import EV_KEY, EV_PASTE, KEYS
+        from .native import EV_DRAG_TOP, EV_KEY, EV_PASTE, EV_QUIET, KEYS
         wheel = self.wheel
         if event == EV_PASTE:
             return self.paste_image()
+        if event in (EV_DRAG_TOP, EV_QUIET):
+            if self._notch_on():
+                self.notch.open_drop() if event == EV_DRAG_TOP else self.notch.set_quiet(bool(key))
+            return
         if event == EV_KEY:
             if (mode := self.settings["keys"].get(KEYS[key])) and not wheel.isVisible():
                 wheel.open_drag(QCursor.pos(), mode)
@@ -364,7 +336,7 @@ class App(QObject):
             return
         from . import history
         from .ui.dialogs import ParamDialog
-        from .ui.windows import ProgressWindow, notice
+        from .ui.windows import notice
         try:
             if kind == "action" and ident == "rename":
                 from .ui.extras import RenameDialog
@@ -374,6 +346,8 @@ class App(QObject):
                 return
             if kind == "action" and ident == "phone":
                 return self.open_phone(paths)
+            if kind == "action" and ident == "float" and self._notch_on():
+                return self.notch.add_to_shelf(paths)
             if kind == "action":
                 from .actions import run_action
                 run_action(ident, paths)
@@ -399,9 +373,7 @@ class App(QObject):
                     jobs = [(f"{len(paths)} files", partial(run_tool, ident, paths, params))]
                 else:
                     jobs = [(Path(p).name, partial(run_tool, ident, [p], params)) for p in paths]
-            record = partial(history.add, title, kind, ident, paths, params=params)
-            self.windows = [w for w in self.windows if w.isVisible()] + [
-                ProgressWindow(title, jobs, on_finish=lambda outs: record(outputs=outs))]
+            self.start_batch(title, jobs, paths, partial(history.add, title, kind, ident, paths, params=params))
         except Exception as e:
             notice(None, "Something went wrong", str(e))
 
@@ -413,11 +385,28 @@ class App(QObject):
     def _run_watched(self, recipe, path, out_dir):
         """A new file in a recipe's watch folder (see recipes.Watcher)."""
         from . import history, recipes
-        from .ui.windows import ProgressWindow
         title = "★ " + recipe["name"]
-        record = partial(history.add, title, "tool", "recipe:" + recipe["name"], [path])
-        self.windows = [w for w in self.windows if w.isVisible()] + [ProgressWindow(
-            title, [(path.name, partial(recipes.run, recipe, path, out_dir))], on_finish=lambda o: record(outputs=o))]
+        self.start_batch(title, [(path.name, partial(recipes.run, recipe, path, out_dir))], [path],
+                         partial(history.add, title, "tool", "recipe:" + recipe["name"], [path]))
+
+    def start_batch(self, title, jobs, sources, record=None):
+        """Run jobs; progress shows in the notch (when on) or the citrus window. record(outputs=...)
+        writes the History entry when it finishes."""
+        from .ui.windows import Batch, ProgressWindow
+        b = Batch(title, jobs, sources, on_finish=(lambda outs: record(outputs=outs)) if record else None)
+        in_notch = self._notch_on() and self.settings["notch_progress"] and self.notch.isVisible()
+        if self.notch is not None:
+            self.notch.track(b, in_notch)
+        if not in_notch:
+            self.windows = [w for w in self.windows if w.isVisible()] + [ProgressWindow(batch=b)]
+        return b
+
+    def run_fit(self, preset, paths):
+        """Notch zones "Fit WhatsApp / Email / Web": a smaller copy for that destination."""
+        from . import history, notchcore
+        title = f"Fit {notchcore.FIT[preset]}"
+        self.start_batch(title, [(Path(p).name, partial(notchcore.fit, p, preset)) for p in paths], paths,
+                         partial(history.add, title, "fit", preset, paths))
 
     def open_recipes(self):
         from . import shell
@@ -435,6 +424,8 @@ class App(QObject):
 
     def open_phone(self, paths=()):
         """QR transfer: send `paths` to the phone, or (from the tray, no paths) receive from it."""
+        if self._notch_on() and self.settings["notch_phone"]:
+            return self.notch.open_phone(paths)
         from .ui.extras import PhoneDialog
         from .ui.windows import notice
         try:

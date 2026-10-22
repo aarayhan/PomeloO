@@ -71,15 +71,96 @@ PILL = ("background: rgba(24,24,27,215); border: 1px solid rgba(255,255,255,0.10
         " padding: 4px 16px; font-weight: 600;")
 
 
+class Batch(QObject):
+    """One run (a conversion or a tool over N files): progress, results, failures, cancel. Shown by
+    ProgressWindow, or by the notch's Jobs tab when the notch is on."""
+    changed = Signal()
+    finished = Signal()
+
+    def __init__(self, title, jobs, sources=(), on_finish=None):
+        super().__init__()
+        self.title, self.sources, self.on_finish = title, [Path(s) for s in sources], on_finish
+        n = len(jobs)
+        self.names = [label for label, _ in jobs]
+        self.fracs, self.outputs, self.failures, self.texts = [0.0] * n, [], [], []
+        self.left, self.total, self.cancelled = n, n, False
+        self.sig = _Signals()
+        self.sig.done.connect(self._done)
+        self.sig.progress.connect(self._progress)
+        self.futures = [POOL.submit(_run_job, i, fn, self.sig) for i, (_, fn) in enumerate(jobs)]
+
+    @property
+    def fraction(self) -> float:
+        return sum(self.fracs) / self.total if self.total else 1.0
+
+    def status(self) -> str:
+        if self.left:
+            return "Cancelling…" if self.cancelled else "Working…"
+        if self.cancelled:
+            return "Cancelled"
+        return f"Done · {len(self.failures)} failed" if self.failures else "Done"
+
+    def savings(self) -> str | None:
+        from ..notchcore import savings
+        return savings(self.sources, self.outputs) if self.outputs else None
+
+    def cancel(self):
+        """Jobs not started yet are dropped; one already running finishes and its result is removed.
+        Only the first call counts (Future.cancel() keeps returning True for a cancelled future)."""
+        if self.cancelled or not self.left:
+            return
+        self.cancelled = True
+        for i, f in enumerate(self.futures):
+            if f.cancel():
+                self._done(i, None, "cancelled")
+
+    def _progress(self, row, f):
+        self.fracs[row] = max(self.fracs[row], f)
+        self.changed.emit()
+
+    def _done(self, row, result, err):
+        self.left -= 1
+        self.fracs[row] = 1.0
+        results = [r for r in (result if isinstance(result, list) else [result]) if r]
+        if self.cancelled:  # throw away what a cancelled run still produced
+            import shutil
+            for r in results:
+                if not isinstance(r, str) and Path(r).exists():
+                    shutil.rmtree(r, ignore_errors=True) if Path(r).is_dir() else Path(r).unlink(missing_ok=True)
+        elif err:
+            self.failures.append(f"{self.names[row]}: {err}")
+        else:
+            for r in results:  # QR / OCR text is collected and copied once at the end
+                (self.texts if isinstance(r, str) else self.outputs).append(r if isinstance(r, str) else Path(r))
+        self.changed.emit()
+        if not self.left:
+            self._finish()
+
+    def _finish(self):
+        if self.on_finish and self.outputs:
+            self.on_finish(self.outputs)
+        if text := self.text():
+            QApplication.clipboard().setText(text)
+        if self.outputs:
+            from ..actions import reveal
+            reveal(self.outputs)  # select in an already-open Explorer window; never opens a new one
+        self.finished.emit()
+
+    def text(self) -> str:
+        return "\n\n".join(t for t in self.texts if t.strip())
+
+
 class ProgressWindow(QWidget):
     """Just the orange: a floating citrus slice that fills with real progress, 'Working…' then 'Done'.
-    Results are selected in an already-open Explorer window. If something fails, clicking shows why."""
-    def __init__(self, title, jobs, on_finish=None):
+    Results are selected in an already-open Explorer window. If something fails, clicking shows why.
+    ProgressWindow(title, jobs, on_finish) starts a Batch; ProgressWindow(batch=b) shows an existing one."""
+
+    def __init__(self, title=None, jobs=None, on_finish=None, batch=None):
         super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        self.on_finish = on_finish  # called once with the output paths (history)
         from .citrus import CitrusProgress
+        self.batch = batch or Batch(title, jobs, on_finish=on_finish)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setToolTip(title)
+        self.setToolTip(self.batch.title)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(10, 10, 10, 10)
         lay.setSpacing(8)
@@ -89,131 +170,132 @@ class ProgressWindow(QWidget):
         self.status.setAlignment(Qt.AlignCenter)
         self.status.setStyleSheet(PILL)  # dark pill: readable on any wallpaper
         lay.addWidget(self.status, 0, Qt.AlignHCenter)
-        n = len(jobs)
-        self.names = [label for label, _ in jobs]
-        self.fracs, self.outputs, self.failures, self.left, self.total = [0.0] * n, [], [], n, n
-        self.texts = []
-        self.sig = _Signals()
-        self.sig.done.connect(self._done)
-        self.sig.progress.connect(self._progress)
+        self.batch.changed.connect(lambda: self.citrus.set_value(self.batch.fraction))
+        self.batch.finished.connect(self._finished)
         self.adjustSize()
         geo = (QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()).availableGeometry()
         self.move(geo.center().x() - self.width() // 2, geo.bottom() - self.height() - 40)
-        for i, (_, fn) in enumerate(jobs):
-            POOL.submit(_run_job, i, fn, self.sig)
         self.show()
 
-    def _progress(self, row, f):
-        self.fracs[row] = max(self.fracs[row], f)
-        self.citrus.set_value(sum(self.fracs) / self.total)
+    # kept for callers and tests that look at the window
+    left = property(lambda self: self.batch.left)
+    outputs = property(lambda self: self.batch.outputs)
+    failures = property(lambda self: self.batch.failures)
 
-    def _done(self, row, result, err):
-        self.left -= 1
-        self.fracs[row] = 1.0
-        if err:
-            self.failures.append(f"{self.names[row]}: {err}")
-        else:
-            for r in result if isinstance(result, list) else [result]:
-                if isinstance(r, str):  # QR / OCR text: collected, copied once at the end
-                    self.texts.append(r)
-                elif r:
-                    self.outputs.append(Path(r))
-        self.citrus.set_value(sum(self.fracs) / self.total)
-        if self.left:
-            return
+    def _finished(self):
+        b = self.batch
         self.citrus.finish()
-        if self.on_finish and self.outputs:
-            self.on_finish(self.outputs)
-        if text := "\n\n".join(t for t in self.texts if t.strip()):
-            QApplication.clipboard().setText(text)
+        if text := b.text():
             preview = text if len(text) < 600 else text[:600] + "…"
-            notice(self, self.toolTip(), preview + "\n\nCopied to the clipboard.", text)
-        elif self.texts:
-            notice(self, self.toolTip(), "No text found.")
-        if self.failures:
-            self.status.setText(f"Done · {len(self.failures)} failed")
+            notice(self, b.title, preview + "\n\nCopied to the clipboard.", text)
+        elif b.texts:
+            notice(self, b.title, "No text found.")
+        self.status.setText(b.status())
+        if b.failures:
             self.status.setStyleSheet(PILL + " color: #ff8a80;")
             self.status.setCursor(Qt.PointingHandCursor)
             self.setToolTip("Click to see what went wrong")
-        else:
-            self.status.setText("Done")
-        if self.outputs:
-            from ..actions import reveal
-            reveal(self.outputs)  # select in an already-open Explorer window; never opens a new one
-        QTimer.singleShot(8000 if self.failures else 1400, lambda: self.underMouse() or self.close())
+        QTimer.singleShot(8000 if b.failures else 1400, lambda: self.underMouse() or self.close())
 
     def mousePressEvent(self, e):
-        if not self.left and self.failures:
-            notice(self, "Some files failed", "\n\n".join(self.failures))
-        if not self.left:
+        if not self.batch.left and self.batch.failures:
+            notice(self, "Some files failed", "\n\n".join(self.batch.failures))
+        if not self.batch.left:
             self.close()
 
 
 # ---------- settings ----------
 class SettingsDialog(GlassMixin, QDialog):
+    """Two columns: wheel keys, shortcuts and behavior on the left; the notch on the right."""
+
     def __init__(self, settings: dict):
         super().__init__()
         self.setWindowTitle("PomeloO Settings")
         self.s = settings
         body = self._glass("Settings")
-        self.setMinimumWidth(460)
+        cols = QHBoxLayout()
+        cols.setSpacing(28)
+        left, right = QVBoxLayout(), QVBoxLayout()
+        cols.addLayout(left, 1)
+        cols.addLayout(right, 1)
+        body.addLayout(cols)
         rev = {v: k for k, v in settings["keys"].items()}
-        body.addWidget(section("Wheel keys"))
-        body.addWidget(muted("While dragging a file in Explorer, tap this key to open the wheel."))
-        self.segs = {}
+        left.addWidget(section("Wheel keys"))
+        left.addWidget(muted("While dragging a file in Explorer, tap this key to open the wheel."))
+        self.segs, self.toggles = {}, {}
         for mode in ("convert", "tools", "actions"):
-            row = QHBoxLayout()
-            lab = QLabel(mode.capitalize())
-            lab.setMinimumWidth(90)
-            seg = Segmented(["shift", "ctrl", "alt"], rev.get(mode, "shift"),
-                            {"shift": "Shift", "ctrl": "Ctrl", "alt": "Alt"})
-            self.segs[mode] = seg
-            row.addWidget(lab)
-            row.addWidget(seg)
-            row.addStretch()
-            body.addLayout(row)
-        body.addSpacing(4)
-        body.addWidget(section("Keyboard"))
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Wheel hotkey"))
-        self.hotkey = QLineEdit(settings["hotkey"])
-        self.hotkey.setPlaceholderText("ctrl+shift+space")
-        row.addWidget(self.hotkey, 1)
-        body.addLayout(row)
-        body.addWidget(muted("Opens the wheel for the files selected in Explorer (or what you copied)."))
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Copy text from screen"))
-        self.ocr_hotkey = QLineEdit(settings["ocr_hotkey"])
-        self.ocr_hotkey.setPlaceholderText("win+ctrl+t")
-        row.addWidget(self.ocr_hotkey, 1)
-        body.addLayout(row)
-        body.addWidget(muted("Drag over any text on screen; it lands on the clipboard. Shortcuts apply after "
-                             "restarting PomeloO."))
-        body.addSpacing(4)
-        body.addWidget(section("Behavior"))
-        self.toggles = {}
-        for k, title, desc in (
-                ("start_with_windows", "Start with Windows", "Open PomeloO automatically after you sign in."),
-                ("drag_wheel", "Wheel while dragging", "Tap a key mid-drag in Explorer to open the wheel."),
-                ("paste_images", "Paste images as files", "Ctrl+V in a folder saves a copied picture there."),
-                ("show_pad", "Floating drop pad", "A small target in the corner to drop files on."),
-                ("sound", "Highlight sound", "A soft click as you move across the wheel."),
-                ("fix_whatsapp_overlay", "Fix WhatsApp desktop clicks",
-                 "WhatsApp leaves an invisible layer that blocks right-clicks on the desktop.")):
-            row = QHBoxLayout()
-            text = QVBoxLayout()
-            text.setSpacing(0)
-            text.addWidget(QLabel(title))
-            text.addWidget(muted(desc))
-            t = Toggle(settings[k])
-            self.toggles[k] = t
-            row.addLayout(text, 1)
-            row.addWidget(t)
-            body.addLayout(row)
+            self.segs[mode] = self._choice(left, mode.capitalize(), ["shift", "ctrl", "alt"], rev.get(mode, "shift"),
+                                           {"shift": "Shift", "ctrl": "Ctrl", "alt": "Alt"})
+        left.addWidget(section("Keyboard"))
+        self.hotkey = self._line(left, "Wheel hotkey", settings["hotkey"], "ctrl+shift+space")
+        left.addWidget(muted("Opens the wheel for the files selected in Explorer (or what you copied)."))
+        self.ocr_hotkey = self._line(left, "Copy text from screen", settings["ocr_hotkey"], "win+ctrl+t")
+        left.addWidget(muted("Shortcuts apply after restarting PomeloO."))
+        left.addWidget(section("Behavior"))
+        self._toggles(left, (
+            ("start_with_windows", "Start with Windows", "Open PomeloO automatically after you sign in."),
+            ("drag_wheel", "Wheel while dragging", "Tap a key mid-drag in Explorer to open the wheel."),
+            ("paste_images", "Paste images as files", "Ctrl+V in a folder saves a copied picture there."),
+            ("show_pad", "Floating drop pad", "A small target in the corner to drop files on."),
+            ("sound", "Highlight sound", "A soft click as you move across the wheel."),
+            ("fix_whatsapp_overlay", "Fix WhatsApp desktop clicks",
+             "WhatsApp leaves an invisible layer that blocks right-clicks on the desktop.")))
+        left.addStretch()
+        right.addWidget(section("Notch"))
+        self._toggles(right, (("notch", "Show the notch",
+                               "A pill at the top of the screen: shelf, drop zones, progress, phone and more."),))
+        self.position = self._choice(right, "Position", ["left", "center", "right"], settings["notch_position"])
+        self.screen_seg = self._choice(right, "Screen", ["primary", "cursor"], settings["notch_screen"],
+                                       {"primary": "Main", "cursor": "Follow cursor"})
+        self._toggles(right, (
+            ("notch_progress", "Progress in the notch", "Instead of the floating orange window."),
+            ("notch_downloads", "Ideas for new downloads", "A HEIC arrives: one click turns it into a JPG."),
+            ("notch_screenshots", "Ideas for copied images", "Save a screenshot as a file, read its text, mark it up."),
+            ("notch_clipboard", "Clipboard tab", "The last few things you copied. Never saved to disk."),
+            ("notch_recent", "Recent tab", "Latest results, ready to drag out, with undo."),
+            ("notch_phone", "Phone tab", "QR code to send files to and from your phone.")))
+        right.addWidget(muted("The notch hides by itself during full-screen apps, games and presentations, and "
+                              "never shows up in screenshots or screen sharing."))
+        right.addStretch()
         self.error = QLabel("")
         self.error.setStyleSheet("color:#ff6961")
         body.addWidget(self.error)
         body.addLayout(footer("Save", self._save, self.reject))
+
+    def _choice(self, lay, label, options, value, labels=None):
+        row = QHBoxLayout()
+        lab = QLabel(label)
+        lab.setMinimumWidth(90)
+        seg = Segmented(options, value, labels or {o: o.capitalize() for o in options})
+        row.addWidget(lab)
+        row.addWidget(seg)
+        row.addStretch()
+        lay.addLayout(row)
+        return seg
+
+    def _line(self, lay, label, value, placeholder):
+        row = QHBoxLayout()
+        row.addWidget(QLabel(label))
+        edit = QLineEdit(value)
+        edit.setPlaceholderText(placeholder)
+        row.addWidget(edit, 1)
+        lay.addLayout(row)
+        return edit
+
+    def _toggles(self, lay, rows):
+        for k, title, desc in rows:
+            row = QHBoxLayout()
+            text = QVBoxLayout()
+            text.setSpacing(0)
+            text.addWidget(QLabel(title))
+            d = muted(desc)
+            d.setWordWrap(True)
+            text.addWidget(d)
+            t = Toggle(self.s[k])
+            self.toggles[k] = t
+            row.addLayout(text, 1)
+            row.addWidget(t)
+            lay.addLayout(row)
 
     def _save(self):
         keys = {seg.value(): mode for mode, seg in self.segs.items()}
@@ -222,6 +304,7 @@ class SettingsDialog(GlassMixin, QDialog):
             return
         self._result = {**self.s, "keys": keys, "hotkey": self.hotkey.text().strip().lower() or "ctrl+shift+space",
                         "ocr_hotkey": self.ocr_hotkey.text().strip().lower() or "win+ctrl+t",
+                        "notch_position": self.position.value(), "notch_screen": self.screen_seg.value(),
                         **{k: t.isChecked() for k, t in self.toggles.items()}}
         self.accept()
 

@@ -4,7 +4,7 @@ import ctypes
 import sys
 from pathlib import Path
 
-EV_KEY, EV_UP, EV_PASTE = 1, 2, 3
+EV_KEY, EV_UP, EV_PASTE, EV_DRAG_TOP, EV_QUIET = 1, 2, 3, 4, 5
 KEYS = ("shift", "ctrl", "alt")
 _CB = ctypes.CFUNCTYPE(None, ctypes.c_int, ctypes.c_int)
 _alive = []  # the DLL calls back forever: keep the ctypes callback from being collected
@@ -35,3 +35,9 @@ def start_watch(on_event, drag_wheel: bool, overlay_fix: bool, paste_images: boo
 def configure(dll, drag_wheel: bool, overlay_fix: bool, paste_images: bool):
     if dll:
         dll.pomeloo_config(int(drag_wheel), int(overlay_fix), int(paste_images))
+
+
+def notch(dll, on: bool):
+    """Drag-to-top and full-screen events (only needed while the notch is enabled)."""
+    if dll:
+        dll.pomeloo_notch(int(on))

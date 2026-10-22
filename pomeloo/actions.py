@@ -28,6 +28,12 @@ def copy_path(paths):
     QApplication.clipboard().setText("\n".join(str(Path(p)) for p in paths))
 
 
+def select_in_explorer(path):
+    """Open an Explorer window with this file selected (when the user asks to see it)."""
+    import subprocess
+    subprocess.Popen(["explorer", "/select,", str(path)])
+
+
 def reveal(paths):
     """Select the files in an Explorer window that already shows their folder. Never opens a new window."""
     paths = [Path(p) for p in paths]

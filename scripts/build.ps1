@@ -9,7 +9,7 @@ New-Item -ItemType Directory -Force native\bin | Out-Null
 $cc = @("-m", "ziglang", "cc", "-target", "x86_64-windows-gnu", "-O2", "-s")
 & $Python @cc -municode "-Wl,--subsystem,windows" native\send.c -o native\bin\pomeloo-send.exe -lshell32  # no console flash
 if ($LASTEXITCODE) { throw "compiling native\send.c failed" }
-& $Python @cc -shared native\watch.c -o native\bin\pomeloo_native.dll
+& $Python @cc -shared native\watch.c -o native\bin\pomeloo_native.dll -lshell32
 if ($LASTEXITCODE) { throw "compiling native\watch.c failed" }
 Remove-Item native\bin\*.pdb, native\bin\*.lib -ErrorAction SilentlyContinue
 if ($NativeOnly) { return }

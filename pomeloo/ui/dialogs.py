@@ -8,7 +8,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
-from ..catalog import TOOLS, ext_of, kind
+from ..catalog import TOOLS, ext_of, kind, size_text
 from ..tools import PARAMS, defaults, read_metadata
 from .editors import (PREVIEW, FileOrder, MediaScrubber, PagesEditor, ShapeCanvas, fmt_time,
                       pil_to_pixmap, shape_toolbar)
@@ -34,13 +34,6 @@ def preview_image(path: Path):
 
 def _pretty(v) -> str:
     return str(v).replace("_", " ").capitalize() if isinstance(v, str) else str(v)
-
-
-def _size(n: float) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024 or unit == "GB":
-            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
-        n /= 1024
 
 
 class ParamDialog(GlassMixin, QDialog):
@@ -325,7 +318,7 @@ class ParamDialog(GlassMixin, QDialog):
             from ..tools import PRESETS
             pct = PRESETS.get(preset, self.getters["percent"]())
             target = kb * 1024 * len(self.paths) if kb else total * pct / 100
-            self.info.setText(f"{_size(total)}  →  about {_size(target)}")
+            self.info.setText(f"{size_text(total)}  →  about {size_text(target)}")
 
     def _render_preview(self):
         from ..tools.image import apply_edit
