@@ -177,7 +177,9 @@ class App(QObject):
         self.native = native.start_watch(self.bridge.drag.emit, self.settings["drag_wheel"],
                                          self.settings["fix_whatsapp_overlay"], self.settings["paste_images"])
         shell.set_autostart(self.settings["start_with_windows"])
-        shell.compact_install()
+        # after install/upgrade, compressing ~700 MB competes for the disk with the first things the user
+        # tries (a first drop onto the notch was missed once): start it a couple of minutes later
+        QTimer.singleShot(120_000, shell.compact_install)
         from .tools.detect import warm_up
         from .ui.snip import ScreenText
         self.screen_text = ScreenText()  # its overlay is ready before the first hotkey press
