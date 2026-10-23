@@ -1,0 +1,1030 @@
+{
+ "version": "1.1.2",
+ "formats": {
+  "aiff": {
+   "kind": "audio",
+   "to": [
+    "mp3",
+    "m4a",
+    "wav",
+    "flac",
+    "ogg",
+    "opus",
+    "wma"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "normalizeAudio",
+    "audioToVideo",
+    "trimAudio",
+    "audioChannels",
+    "redactAudio"
+   ],
+   "tools_many": []
+  },
+  "avi": {
+   "kind": "video",
+   "to": [
+    "mp4",
+    "mov",
+    "mkv",
+    "webm",
+    "wmv",
+    "gif",
+    "mp3"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "muteVideo",
+    "trimVideo",
+    "cropVideo",
+    "changeVideoSpeed",
+    "videoSnapshots",
+    "splitVideo",
+    "redactVideo",
+    "burnSubtitles"
+   ],
+   "tools_many": [
+    "joinVideos"
+   ]
+  },
+  "avif": {
+   "kind": "image",
+   "to": [
+    "jpg",
+    "png",
+    "webp",
+    "heic",
+    "tiff",
+    "bmp",
+    "pdf"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "editImage",
+    "annotateImage",
+    "frameImage",
+    "cropImage",
+    "redactImage",
+    "readQR",
+    "extractText",
+    "searchablePDF"
+   ],
+   "tools_many": [
+    "createPDF",
+    "createCollage"
+   ]
+  },
+  "bmp": {
+   "kind": "image",
+   "to": [
+    "jpg",
+    "png",
+    "webp",
+    "heic",
+    "tiff",
+    "avif",
+    "pdf"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "editImage",
+    "annotateImage",
+    "frameImage",
+    "cropImage",
+    "redactImage",
+    "readQR",
+    "extractText",
+    "searchablePDF"
+   ],
+   "tools_many": [
+    "createPDF",
+    "createCollage"
+   ]
+  },
+  "csv": {
+   "kind": "spreadsheet",
+   "to": [
+    "xlsx",
+    "ods",
+    "tsv",
+    "pdf"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "docx": {
+   "kind": "document",
+   "to": [
+    "pdf",
+    "txt",
+    "md",
+    "html",
+    "epub",
+    "png",
+    "jpg"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "epub": {
+   "kind": "document",
+   "to": [
+    "pdf",
+    "docx",
+    "txt",
+    "md",
+    "html"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "flac": {
+   "kind": "audio",
+   "to": [
+    "mp3",
+    "m4a",
+    "wav",
+    "ogg",
+    "opus",
+    "aiff",
+    "wma"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "normalizeAudio",
+    "audioToVideo",
+    "trimAudio",
+    "audioChannels",
+    "redactAudio"
+   ],
+   "tools_many": []
+  },
+  "gif": {
+   "kind": "video",
+   "to": [
+    "mp4",
+    "mov",
+    "mkv",
+    "webm",
+    "avi",
+    "wmv"
+   ],
+   "tools": [
+    "removeMetadata"
+   ],
+   "tools_many": []
+  },
+  "gz": {
+   "kind": "archive",
+   "to": [
+    "zip",
+    "tar"
+   ],
+   "tools": [
+    "extractArchive"
+   ],
+   "tools_many": []
+  },
+  "heic": {
+   "kind": "image",
+   "to": [
+    "jpg",
+    "png",
+    "webp",
+    "tiff",
+    "avif",
+    "bmp",
+    "pdf"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "editImage",
+    "annotateImage",
+    "frameImage",
+    "cropImage",
+    "redactImage",
+    "readQR",
+    "extractText",
+    "searchablePDF"
+   ],
+   "tools_many": [
+    "createPDF",
+    "createCollage"
+   ]
+  },
+  "html": {
+   "kind": "document",
+   "to": [
+    "docx",
+    "pdf",
+    "txt",
+    "md",
+    "epub"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "jpg": {
+   "kind": "image",
+   "to": [
+    "png",
+    "webp",
+    "heic",
+    "tiff",
+    "avif",
+    "bmp",
+    "pdf"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "editImage",
+    "annotateImage",
+    "frameImage",
+    "cropImage",
+    "redactImage",
+    "readQR",
+    "extractText",
+    "searchablePDF"
+   ],
+   "tools_many": [
+    "createPDF",
+    "createCollage"
+   ]
+  },
+  "m4a": {
+   "kind": "audio",
+   "to": [
+    "mp3",
+    "wav",
+    "flac",
+    "ogg",
+    "opus",
+    "aiff",
+    "wma"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "normalizeAudio",
+    "audioToVideo",
+    "trimAudio",
+    "audioChannels",
+    "redactAudio"
+   ],
+   "tools_many": []
+  },
+  "md": {
+   "kind": "document",
+   "to": [
+    "docx",
+    "pdf",
+    "txt",
+    "html",
+    "epub",
+    "png",
+    "jpg"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "mkv": {
+   "kind": "video",
+   "to": [
+    "mp4",
+    "mov",
+    "webm",
+    "avi",
+    "wmv",
+    "gif",
+    "mp3"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "muteVideo",
+    "trimVideo",
+    "cropVideo",
+    "changeVideoSpeed",
+    "videoSnapshots",
+    "splitVideo",
+    "redactVideo",
+    "burnSubtitles"
+   ],
+   "tools_many": [
+    "joinVideos"
+   ]
+  },
+  "mov": {
+   "kind": "video",
+   "to": [
+    "mp4",
+    "mkv",
+    "webm",
+    "avi",
+    "wmv",
+    "gif",
+    "mp3"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "muteVideo",
+    "trimVideo",
+    "cropVideo",
+    "changeVideoSpeed",
+    "videoSnapshots",
+    "splitVideo",
+    "redactVideo",
+    "burnSubtitles"
+   ],
+   "tools_many": [
+    "joinVideos"
+   ]
+  },
+  "mp3": {
+   "kind": "audio",
+   "to": [
+    "m4a",
+    "wav",
+    "flac",
+    "ogg",
+    "opus",
+    "aiff",
+    "wma"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "normalizeAudio",
+    "audioToVideo",
+    "trimAudio",
+    "audioChannels",
+    "redactAudio"
+   ],
+   "tools_many": []
+  },
+  "mp4": {
+   "kind": "video",
+   "to": [
+    "mov",
+    "mkv",
+    "webm",
+    "avi",
+    "wmv",
+    "gif",
+    "mp3"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "muteVideo",
+    "trimVideo",
+    "cropVideo",
+    "changeVideoSpeed",
+    "videoSnapshots",
+    "splitVideo",
+    "redactVideo",
+    "burnSubtitles"
+   ],
+   "tools_many": [
+    "joinVideos"
+   ]
+  },
+  "ods": {
+   "kind": "spreadsheet",
+   "to": [
+    "xlsx",
+    "csv",
+    "tsv",
+    "pdf"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "ogg": {
+   "kind": "audio",
+   "to": [
+    "mp3",
+    "m4a",
+    "wav",
+    "flac",
+    "opus",
+    "aiff",
+    "wma"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "normalizeAudio",
+    "audioToVideo",
+    "trimAudio",
+    "audioChannels",
+    "redactAudio"
+   ],
+   "tools_many": []
+  },
+  "opus": {
+   "kind": "audio",
+   "to": [
+    "mp3",
+    "m4a",
+    "wav",
+    "flac",
+    "ogg",
+    "aiff",
+    "wma"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "normalizeAudio",
+    "audioToVideo",
+    "trimAudio",
+    "audioChannels",
+    "redactAudio"
+   ],
+   "tools_many": []
+  },
+  "pages": {
+   "kind": "document",
+   "to": [
+    "docx",
+    "pdf",
+    "txt",
+    "md",
+    "html",
+    "epub",
+    "png",
+    "jpg"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "pdf": {
+   "kind": "document",
+   "to": [
+    "docx",
+    "pptx",
+    "xlsx",
+    "jpg",
+    "png",
+    "epub",
+    "txt",
+    "md"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "splitPDF",
+    "organizePDF",
+    "extractText",
+    "searchablePDF",
+    "protectPDF",
+    "unlockPDF",
+    "watermarkPDF",
+    "numberPDF"
+   ],
+   "tools_many": [
+    "mergePDF"
+   ]
+  },
+  "png": {
+   "kind": "image",
+   "to": [
+    "jpg",
+    "webp",
+    "heic",
+    "tiff",
+    "avif",
+    "bmp",
+    "pdf"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "editImage",
+    "annotateImage",
+    "frameImage",
+    "cropImage",
+    "redactImage",
+    "readQR",
+    "extractText",
+    "searchablePDF"
+   ],
+   "tools_many": [
+    "createPDF",
+    "createCollage"
+   ]
+  },
+  "ppt": {
+   "kind": "document",
+   "to": [
+    "pdf",
+    "jpg",
+    "png"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "pptx": {
+   "kind": "document",
+   "to": [
+    "pdf",
+    "jpg",
+    "png"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "rar": {
+   "kind": "archive",
+   "to": [
+    "zip",
+    "tar",
+    "gz"
+   ],
+   "tools": [
+    "extractArchive"
+   ],
+   "tools_many": []
+  },
+  "rtf": {
+   "kind": "document",
+   "to": [
+    "docx",
+    "pdf",
+    "txt",
+    "md",
+    "html",
+    "epub",
+    "png",
+    "jpg"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "rtfd": {
+   "kind": "document",
+   "to": [
+    "docx",
+    "pdf",
+    "txt",
+    "md",
+    "html",
+    "epub",
+    "png",
+    "jpg"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "srt": {
+   "kind": "subtitle",
+   "to": [
+    "vtt",
+    "txt"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "svg": {
+   "kind": "image",
+   "to": [
+    "jpg",
+    "png",
+    "webp",
+    "heic",
+    "tiff",
+    "avif",
+    "bmp",
+    "pdf"
+   ],
+   "tools": [],
+   "tools_many": [
+    "createPDF",
+    "createCollage"
+   ]
+  },
+  "tar": {
+   "kind": "archive",
+   "to": [
+    "zip",
+    "gz"
+   ],
+   "tools": [
+    "extractArchive"
+   ],
+   "tools_many": []
+  },
+  "tiff": {
+   "kind": "image",
+   "to": [
+    "jpg",
+    "png",
+    "webp",
+    "heic",
+    "avif",
+    "bmp",
+    "pdf"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "editImage",
+    "annotateImage",
+    "frameImage",
+    "cropImage",
+    "redactImage",
+    "readQR",
+    "extractText",
+    "searchablePDF"
+   ],
+   "tools_many": [
+    "createPDF",
+    "createCollage"
+   ]
+  },
+  "tsv": {
+   "kind": "spreadsheet",
+   "to": [
+    "xlsx",
+    "ods",
+    "csv",
+    "pdf"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "txt": {
+   "kind": "document",
+   "to": [
+    "docx",
+    "pdf",
+    "md",
+    "html",
+    "epub",
+    "jpg",
+    "png"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "vtt": {
+   "kind": "subtitle",
+   "to": [
+    "srt",
+    "txt"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "wav": {
+   "kind": "audio",
+   "to": [
+    "mp3",
+    "m4a",
+    "flac",
+    "ogg",
+    "opus",
+    "aiff",
+    "wma"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "normalizeAudio",
+    "audioToVideo",
+    "trimAudio",
+    "audioChannels",
+    "redactAudio"
+   ],
+   "tools_many": []
+  },
+  "webm": {
+   "kind": "video",
+   "to": [
+    "mp4",
+    "mov",
+    "mkv",
+    "avi",
+    "wmv",
+    "gif",
+    "mp3"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "muteVideo",
+    "trimVideo",
+    "cropVideo",
+    "changeVideoSpeed",
+    "videoSnapshots",
+    "splitVideo",
+    "redactVideo",
+    "burnSubtitles"
+   ],
+   "tools_many": [
+    "joinVideos"
+   ]
+  },
+  "webp": {
+   "kind": "image",
+   "to": [
+    "jpg",
+    "png",
+    "heic",
+    "tiff",
+    "avif",
+    "bmp",
+    "pdf"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "editImage",
+    "annotateImage",
+    "frameImage",
+    "cropImage",
+    "redactImage",
+    "readQR",
+    "extractText",
+    "searchablePDF"
+   ],
+   "tools_many": [
+    "createPDF",
+    "createCollage"
+   ]
+  },
+  "wma": {
+   "kind": "audio",
+   "to": [
+    "mp3",
+    "m4a",
+    "wav",
+    "flac",
+    "ogg",
+    "opus",
+    "aiff"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "normalizeAudio",
+    "audioToVideo",
+    "trimAudio",
+    "audioChannels",
+    "redactAudio"
+   ],
+   "tools_many": []
+  },
+  "wmv": {
+   "kind": "video",
+   "to": [
+    "mp4",
+    "mov",
+    "mkv",
+    "webm",
+    "avi",
+    "gif",
+    "mp3"
+   ],
+   "tools": [
+    "compress",
+    "removeMetadata",
+    "muteVideo",
+    "trimVideo",
+    "cropVideo",
+    "changeVideoSpeed",
+    "videoSnapshots",
+    "splitVideo",
+    "redactVideo",
+    "burnSubtitles"
+   ],
+   "tools_many": [
+    "joinVideos"
+   ]
+  },
+  "xls": {
+   "kind": "spreadsheet",
+   "to": [
+    "xlsx",
+    "ods",
+    "csv",
+    "tsv",
+    "pdf"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "xlsx": {
+   "kind": "spreadsheet",
+   "to": [
+    "ods",
+    "csv",
+    "tsv",
+    "pdf"
+   ],
+   "tools": [],
+   "tools_many": []
+  },
+  "zip": {
+   "kind": "archive",
+   "to": [
+    "tar",
+    "gz"
+   ],
+   "tools": [
+    "extractArchive"
+   ],
+   "tools_many": []
+  }
+ },
+ "tools": {
+  "compress": {
+   "short": "COMPRESS",
+   "name": "Compress"
+  },
+  "removeMetadata": {
+   "short": "METADATA",
+   "name": "Metadata"
+  },
+  "editImage": {
+   "short": "EDIT",
+   "name": "Edit Photo"
+  },
+  "annotateImage": {
+   "short": "ANNOTATE",
+   "name": "Annotate Photo"
+  },
+  "frameImage": {
+   "short": "ADD BG",
+   "name": "Add Background"
+  },
+  "cropImage": {
+   "short": "CROP",
+   "name": "Crop Image"
+  },
+  "redactImage": {
+   "short": "REDACT",
+   "name": "Redact Photo"
+  },
+  "readQR": {
+   "short": "QR",
+   "name": "Read QR Code"
+  },
+  "createPDF": {
+   "short": "CREATE PDF",
+   "name": "Create PDF"
+  },
+  "createCollage": {
+   "short": "COLLAGE",
+   "name": "Create Collage"
+  },
+  "normalizeAudio": {
+   "short": "NORMALIZE",
+   "name": "Normalize Volume"
+  },
+  "audioToVideo": {
+   "short": "VISUALIZE",
+   "name": "Audio Visualizer"
+  },
+  "trimAudio": {
+   "short": "TRIM",
+   "name": "Trim Audio"
+  },
+  "audioChannels": {
+   "short": "CHANNELS",
+   "name": "Convert Audio Channels"
+  },
+  "redactAudio": {
+   "short": "BLEEP",
+   "name": "Bleep Audio"
+  },
+  "muteVideo": {
+   "short": "MUTE",
+   "name": "Remove Audio"
+  },
+  "trimVideo": {
+   "short": "TRIM",
+   "name": "Trim Video"
+  },
+  "cropVideo": {
+   "short": "CROP",
+   "name": "Crop Video"
+  },
+  "changeVideoSpeed": {
+   "short": "SPEED",
+   "name": "Change Video Speed"
+  },
+  "videoSnapshots": {
+   "short": "SNAPSHOT",
+   "name": "Video Snapshots"
+  },
+  "splitVideo": {
+   "short": "SPLIT",
+   "name": "Split Video"
+  },
+  "redactVideo": {
+   "short": "REDACT",
+   "name": "Redact Video"
+  },
+  "joinVideos": {
+   "short": "JOIN",
+   "name": "Join Videos"
+  },
+  "splitPDF": {
+   "short": "SPLIT",
+   "name": "Split PDF"
+  },
+  "organizePDF": {
+   "short": "ORGANIZE",
+   "name": "Organize PDF"
+  },
+  "mergePDF": {
+   "short": "MERGE PDF",
+   "name": "Merge PDFs"
+  },
+  "extractArchive": {
+   "short": "EXTRACT",
+   "name": "Extract Archive"
+  },
+  "extractText": {
+   "short": "TEXT",
+   "name": "Copy Text (OCR)"
+  },
+  "searchablePDF": {
+   "short": "SEARCHABLE",
+   "name": "Searchable PDF"
+  },
+  "protectPDF": {
+   "short": "LOCK",
+   "name": "Add Password"
+  },
+  "unlockPDF": {
+   "short": "UNLOCK",
+   "name": "Remove Password"
+  },
+  "watermarkPDF": {
+   "short": "WATERMARK",
+   "name": "Add Watermark"
+  },
+  "numberPDF": {
+   "short": "NUMBERS",
+   "name": "Page Numbers"
+  },
+  "burnSubtitles": {
+   "short": "SUBTITLES",
+   "name": "Burn In Subtitles"
+  }
+ },
+ "actions": {
+  "share": {
+   "short": "SHARE",
+   "name": "Share",
+   "about": "Share files through the Windows share sheet (AirDrop on Mac)."
+  },
+  "float": {
+   "short": "FLOAT",
+   "name": "Float",
+   "about": "Keep files in a floating shelf; drag them into another app."
+  },
+  "copy": {
+   "short": "COPY",
+   "name": "Copy",
+   "about": "Copy files to the clipboard, ready to paste in Explorer."
+  },
+  "move": {
+   "short": "MOVE",
+   "name": "Move",
+   "about": "Choose a destination folder and move the originals there."
+  },
+  "copyPath": {
+   "short": "COPY PATH",
+   "name": "Copy Path",
+   "about": "Copy full paths as text, one per line."
+  },
+  "terminal": {
+   "short": "TERMINAL",
+   "name": "Terminal",
+   "about": "Open the folder (or file's folder) in Windows Terminal."
+  },
+  "rename": {
+   "short": "RENAME",
+   "name": "Rename",
+   "about": "Rename in place with a pattern: numbering, date taken, folder name."
+  },
+  "phone": {
+   "short": "PHONE",
+   "name": "Send to Phone",
+   "about": "Show a QR code: your phone downloads these over Wi-Fi and can send files back."
+  }
+ }
+}
