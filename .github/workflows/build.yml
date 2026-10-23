@@ -72,3 +72,10 @@ jobs:
           files: |
             dist/PomeloO-Setup-${{ steps.pkg.outputs.version }}.exe
             dist/PomeloO-${{ steps.pkg.outputs.version }}-portable.zip
+
+      - name: Rebuild the website (pomeloo-website on Netlify reads the release and catalog.json)
+        if: github.event_name == 'push'
+        env:
+          HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
+        shell: pwsh
+        run: if ($env:HOOK) { Invoke-RestMethod -Method Post -Uri $env:HOOK | Out-Null } else { "no NETLIFY_BUILD_HOOK secret" }
