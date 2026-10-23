@@ -31,6 +31,11 @@ jobs:
           $v = (python -c "import pomeloo; print(pomeloo.__version__)").Trim()
           if ("v$v" -ne "${{ github.ref_name }}") { throw "tag ${{ github.ref_name }} but pomeloo.__version__ is $v" }
 
+      - name: docs/catalog.json is current (the website reads it)
+        run: |
+          python scripts/export_catalog.py
+          git diff --exit-code docs/catalog.json
+
       - name: Test (every conversion pair and tool, outputs opened and validated)
         run: python tests/test_convert.py
 
