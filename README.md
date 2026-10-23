@@ -20,6 +20,8 @@
 
 <p align="center">
   <a href="https://github.com/aarayhan/PomeloO/releases/latest"><b>⬇&nbsp; Download PomeloO for Windows</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://pomeloo.netlify.app/"><b>Website and how-to guides</b></a>
 </p>
 
 <p align="center">
