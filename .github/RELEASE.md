@@ -1,5 +1,11 @@
 **Drag a file, tap a key, pick a format.** PomeloO converts and edits files on your own PC: nothing is uploaded.
 
+## New in 1.1.3
+- **Settings fits small screens**: it opens no taller than the screen, scrolls, and can be resized from the
+  bottom-right corner, so **Save** is always in reach.
+- **Phone in the notch**: **Stop** now ends sharing *and* closes the notch. Sharing also ends by itself when the
+  QR code leaves the screen (another tab, the notch closes) or after 10 minutes without a file from the phone.
+
 ## Install
 1. Download **PomeloO-Setup-x.y.z.exe** below and run it. No admin rights are needed; it installs for your user only.
 2. Windows may show *"Windows protected your PC"* because the installer isn't code-signed yet: click **More info → Run anyway**.
