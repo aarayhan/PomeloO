@@ -6,7 +6,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QFileInfo, QMimeData, QSize, Qt, QUrl, Signal
+from PySide6.QtCore import QEvent, QFileInfo, QMimeData, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QCursor, QDrag, QGuiApplication, QImage, QPixmap
 from PySide6.QtWidgets import (QApplication, QFileIconProvider, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
                                QMenu, QProgressBar, QToolTip, QVBoxLayout, QWidget)
@@ -412,12 +412,16 @@ class RecentTab(QWidget):
 
 # ---------- Phone ----------
 class PhoneTab(QWidget):
-    """QR code in the notch: the phone downloads the shared files and can send files back."""
+    """QR code in the notch: the phone downloads the shared files and can send files back.
+    Sharing lives only while the QR is on screen; `stopped` fires when Stop (or the idle limit) ends it."""
     received = Signal(str)
+    stopped = Signal()
+    IDLE_MS = 10 * 60_000  # forgotten QR: stop after 10 minutes without a file from the phone
 
     def __init__(self):
         super().__init__()
         self.share = None
+        self.idle = QTimer(self, singleShot=True, interval=self.IDLE_MS, timeout=self._end)
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.qr = QLabel()
@@ -431,7 +435,7 @@ class PhoneTab(QWidget):
         self.got.setMaximumHeight(90)
         row = QHBoxLayout()
         self.start_btn = button("Receive from phone", lambda: self.start([]), primary=True)
-        self.stop_btn = button("Stop", self.stop)
+        self.stop_btn = button("Stop", self._end)
         row.addWidget(self.start_btn)
         row.addWidget(self.stop_btn)
         row.addStretch()
@@ -439,7 +443,7 @@ class PhoneTab(QWidget):
             right.addWidget(w)
         right.addLayout(row)
         lay.addLayout(right, 1)
-        self.received.connect(lambda p: self.got.set_paths(self.got.paths() + [p]))
+        self.received.connect(lambda p: (self.got.set_paths(self.got.paths() + [p]), self.idle.start()))
         self._idle()
 
     def start(self, files):
@@ -456,12 +460,18 @@ class PhoneTab(QWidget):
                           + (" Tap a file on the phone to download it." if files else ""))
         self.start_btn.hide()
         self.stop_btn.show()
+        self.idle.start()
 
     def stop(self):
+        self.idle.stop()
         if self.share:
             self.share.close()
             self.share = None
         self._idle()
+
+    def _end(self):
+        self.stop()
+        self.stopped.emit()
 
     def _idle(self):
         self.qr.hide()

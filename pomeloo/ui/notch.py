@@ -50,6 +50,7 @@ class Notch(QWidget):
         for w in self.page.values():
             self.pages.addWidget(w)
         self.shelf.changed.connect(self._pill_text)
+        self.phone.stopped.connect(self.collapse_now)  # Stop (or the idle limit) also closes the notch
         self.clip.image_copied.connect(self._copied_image)
         from ..recipes import NewFiles
         self.downloads = NewFiles(self._downloaded)
@@ -84,6 +85,8 @@ class Notch(QWidget):
         return w
 
     def show_tab(self, name):
+        if name != "Phone":
+            self.phone.stop()  # sharing lives only while its QR is on screen
         self.tabs.setCurrentWidget(self.tab_of[name])
         for n, b in self.tab_buttons.items():
             b.setChecked(n == name)
@@ -139,6 +142,7 @@ class Notch(QWidget):
 
     def collapse_now(self):
         self.back_timer.stop()
+        self.phone.stop()  # the QR is going away, so is the sharing
         self._pill_text()
         self.go("pill")
 
@@ -208,8 +212,8 @@ class Notch(QWidget):
     # ---------- notices and suggestions ----------
     def toast(self, text, ms=3500) -> bool:
         """False when not shown (the panel is in use): callers then use the tray instead."""
-        if self.state == "panel" and self.underMouse():
-            return False  # don't yank the panel away from someone using it
+        if self.state == "panel" and (self.underMouse() or self.phone.active()):
+            return False  # don't yank the panel away from someone using it (or from the phone's QR)
         self.toast_label.setText(text)
         self.go("toast")
         self.back_timer.start(ms)
@@ -217,7 +221,7 @@ class Notch(QWidget):
 
     def suggest(self, text, steps, ms=9000):
         """steps: [(label, callable)], shown as a strip of buttons that goes away by itself."""
-        if self.state in ("panel", "drop") and self.underMouse():
+        if self.state in ("panel", "drop") and (self.underMouse() or self.phone.active()):
             return
         lay = QHBoxLayout(self._fresh("suggest"))
         lay.setContentsMargins(18, 4, 10, 6)
