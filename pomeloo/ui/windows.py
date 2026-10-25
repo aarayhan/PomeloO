@@ -5,8 +5,8 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QCursor
-from PySide6.QtWidgets import (QApplication, QDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+                               QScrollArea, QSizeGrip, QVBoxLayout, QWidget)
 
 from .theme import GlassMixin, Segmented, Toggle, footer, muted, section
 
@@ -213,12 +213,20 @@ class SettingsDialog(GlassMixin, QDialog):
         self.setWindowTitle("PomeloO Settings")
         self.s = settings
         body = self._glass("Settings")
-        cols = QHBoxLayout()
+        # taller than many laptop screens: the columns scroll, and the corner grip resizes the frameless window
+        content = QWidget(objectName="settingsBody")
+        content.setStyleSheet("#settingsBody { background: transparent; }")
+        self.scroll = QScrollArea(widgetResizable=True, frameShape=QFrame.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        self.scroll.setWidget(content)
+        body.addWidget(self.scroll, 1)
+        cols = QHBoxLayout(content)
+        cols.setContentsMargins(0, 0, 10, 0)  # room for the scrollbar
         cols.setSpacing(28)
         left, right = QVBoxLayout(), QVBoxLayout()
         cols.addLayout(left, 1)
         cols.addLayout(right, 1)
-        body.addLayout(cols)
         rev = {v: k for k, v in settings["keys"].items()}
         left.addWidget(section("Wheel keys"))
         left.addWidget(muted("While dragging a file in Explorer, tap this key to open the wheel."))
@@ -260,7 +268,14 @@ class SettingsDialog(GlassMixin, QDialog):
         self.error = QLabel("")
         self.error.setStyleSheet("color:#ff6961")
         body.addWidget(self.error)
-        body.addLayout(footer("Save", self._save, self.reject))
+        foot = footer("Save", self._save, self.reject)
+        foot.addWidget(QSizeGrip(self), 0, Qt.AlignBottom | Qt.AlignRight)
+        body.addLayout(foot)
+        self.setMinimumSize(content.minimumSizeHint().width() + 60, 360)
+        # open as tall as the contents, but never taller than the screen
+        screen = (self.screen() or QApplication.primaryScreen()).availableGeometry()
+        full = self.sizeHint().height() - self.scroll.sizeHint().height() + content.sizeHint().height()
+        self.resize(self.sizeHint().width(), min(full, screen.height() - 48))
 
     def _choice(self, lay, label, options, value, labels=None):
         row = QHBoxLayout()
