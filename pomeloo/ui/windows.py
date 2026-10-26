@@ -242,6 +242,7 @@ class SettingsDialog(GlassMixin, QDialog):
         left.addWidget(section("Behavior"))
         self._toggles(left, (
             ("start_with_windows", "Start with Windows", "Open PomeloO automatically after you sign in."),
+            ("auto_update", "Update automatically", "Checks GitHub once a day and installs new versions by itself."),
             ("drag_wheel", "Wheel while dragging", "Tap a key mid-drag in Explorer to open the wheel."),
             ("paste_images", "Paste images as files", "Ctrl+V in a folder saves a copied picture there."),
             ("show_pad", "Floating drop pad", "A small target in the corner to drop files on."),

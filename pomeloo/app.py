@@ -25,7 +25,7 @@ TICK = APPDIR / "tick.wav"
 DEFAULTS = {"keys": {"shift": "convert", "ctrl": "tools", "alt": "actions"}, "hotkey": "ctrl+shift+space",
             "drag_wheel": True, "show_pad": True, "sound": True, "fix_whatsapp_overlay": True,
             "start_with_windows": True, "recipes": [], "ocr_hotkey": "win+ctrl+t", "paste_images": True,
-            "notch": True, "notch_position": "center", "notch_screen": "primary", "notch_size": "normal", "notch_progress": True,
+            "notch": True, "notch_position": "center", "notch_screen": "primary", "notch_size": "normal", "auto_update": True, "notch_progress": True,
             "notch_downloads": True, "notch_screenshots": True, "notch_clipboard": True, "notch_recent": True,
             "notch_phone": True}
 user32 = ctypes.windll.user32
@@ -200,6 +200,12 @@ class App(QObject):
         self.pad.setVisible(self.settings["show_pad"])
         self.notch = None
         self._set_notch()
+        from . import __version__
+        from .update import Updater
+        self.updater = Updater(self)
+        if self.settings.get("version_seen") not in (None, __version__):  # the setup just updated this copy
+            QTimer.singleShot(3000, lambda: self.notify(f"PomeloO updated to {__version__}"))
+        self._set("version_seen", __version__)
 
     def tick(self):
         if self.settings["sound"]:
@@ -219,6 +225,7 @@ class App(QObject):
         m.addAction("Recipes…", self.open_recipes)
         m.addAction("History…", self.open_history)
         m.addAction("Settings…", self.open_settings)
+        m.addAction("Check for updates…", lambda: self.updater.check(manual=True))
         m.addSeparator()
         m.addAction("Add to Explorer menu", lambda: self.tray.showMessage(
             "PomeloO", f"Registered {shell.register(self.settings['recipes'])} keys."))
@@ -263,6 +270,13 @@ class App(QObject):
     def notify(self, message: str):
         if not (self._notch_on() and self.notch.isVisible() and self.notch.toast(message, 5000)):
             self.tray.showMessage("PomeloO", message)
+
+    def busy(self) -> bool:
+        """Something the user would lose if PomeloO closed now (the self-update waits for this)."""
+        notch = self._notch_on() and (self.notch.jobs.running() or self.notch.phone.active())
+        open_windows = any(w.isVisible() for w in QApplication.topLevelWidgets()
+                           if isinstance(w, QDialog) or w in self.windows)
+        return bool(notch or open_windows or self.wheel.isVisible())
 
     def reveal_new(self, path):
         from .actions import select_in_explorer

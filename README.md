@@ -98,9 +98,12 @@ convert slides (about 375 MB, from The Document Foundation, checksum-verified, n
 
 ## Privacy
 
-No telemetry, no accounts, no uploads. PomeloO only uses the network in two cases, both started by you:
-the one-time LibreOffice download above, and **Send to Phone**, which shares files on your own Wi-Fi only,
-behind a random link, and only while its QR code is open. The clipboard history stays in memory and
+No telemetry, no accounts, no uploads. PomeloO uses the network in only three cases: the one-time
+LibreOffice download above and **Send to Phone** (both started by you; Send to Phone shares files on your own
+Wi-Fi only, behind a random link, and only while its QR code is open), and the **update check**: once a day it
+reads the latest release from GitHub and, if it's newer, downloads the installer, checks its SHA-256 and installs
+it while you're not using the PC. Nothing about you or your files is sent; Settings → *Update automatically*
+turns it off. The clipboard history stays in memory and
 skips anything a password manager marks as private. The notch never appears in screenshots or screen
 sharing.
 
