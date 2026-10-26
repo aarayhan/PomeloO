@@ -1,5 +1,12 @@
 **Drag a file, tap a key, pick a format.** PomeloO converts and edits files on your own PC: nothing is uploaded.
 
+## New in 1.1.6
+- **PomeloO updates itself.** Once a day it checks GitHub for a new version, downloads it, checks its SHA-256 and
+  installs it while you're not using the PC (nothing running, no window open), then starts again. Tray →
+  **Check for updates…** does it right away; Settings → **Update automatically** turns it off. The portable zip only
+  tells you when a new version is out. *Coming from 1.1.5 or older? Install this one by hand once; after that it's
+  automatic.*
+
 ## New in 1.1.5
 - **Smaller notch**: Settings → Notch → **Size → Small** makes the pill, the notices and the ideas strip smaller.
   The panel and the drop zones keep their room.
