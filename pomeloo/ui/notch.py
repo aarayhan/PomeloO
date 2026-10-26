@@ -13,6 +13,8 @@ from .notch_tabs import ClipTab, JobsTab, PhoneTab, RecentTab, ShelfTab
 from .theme import ACCENT, button, muted
 
 SIZES = {"pill": (180, 28), "toast": (460, 36), "suggest": (600, 46), "panel": (680, 300), "drop": (720, 112)}
+# Settings → Notch → Size: Small. Only the parts that sit on screen shrink; the panel and drop zones keep their room
+SMALL = {"pill": (124, 20), "toast": (380, 30), "suggest": (500, 38)}
 _CHIP = ("QLabel{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.10);border-radius:10px;"
          "padding:0 12px;color:#f4f4f5}")
 _HOT = ("QLabel{background:%s;border:1px solid %s;border-radius:10px;padding:0 12px;color:#18181b}"
@@ -93,7 +95,12 @@ class Notch(QWidget):
         if name == "Recent":
             self.recent.refresh()
 
+    def small(self) -> bool:
+        return self.s.get("notch_size") == "small"
+
     def apply_settings(self):
+        self.pill.setStyleSheet(f"color:#a1a1aa;font-size:{9 if self.small() else 11}px")
+        self.toast_label.setStyleSheet(f"color:#f4f4f5;font-weight:600;font-size:{9 if self.small() else 10}pt")
         for name, key in (("Clipboard", "notch_clipboard"), ("Recent", "notch_recent"), ("Phone", "notch_phone")):
             self.tab_buttons[name].setVisible(self.s.get(key, True))
         from PySide6.QtCore import QStandardPaths
@@ -107,7 +114,7 @@ class Notch(QWidget):
         return QGuiApplication.primaryScreen()
 
     def _rect(self, state) -> QRect:
-        w, h = SIZES[state]
+        w, h = (self.small() and SMALL.get(state)) or SIZES[state]
         g = self._screen().availableGeometry()
         # right: stay clear of maximized windows' minimize / maximize / close buttons (~140 px)
         x = {"left": g.left() + 24, "right": g.right() - w - 170}.get(self.s.get("notch_position"), g.center().x() - w // 2)
@@ -226,11 +233,13 @@ class Notch(QWidget):
         if self.state in ("panel", "drop") and (self.underMouse() or self.phone.active()):
             return
         lay = QHBoxLayout(self._fresh("suggest"))
-        lay.setContentsMargins(18, 4, 10, 6)
-        lay.addWidget(QLabel(text, styleSheet="color:#f4f4f5"), 1)
-        for lab, fn in steps:
-            lay.addWidget(button(lab, partial(self._run_and_close, fn)))
-        lay.addWidget(button("×", self.collapse_now))
+        lay.setContentsMargins(*((14, 3, 8, 4) if self.small() else (18, 4, 10, 6)))
+        lay.addWidget(QLabel(text, styleSheet="color:#f4f4f5" + (";font-size:9pt" if self.small() else "")), 1)
+        tight = "font-size:9pt;padding:2px 10px;min-height:0" if self.small() else ""
+        for lab, fn in steps + [("×", self.collapse_now)]:
+            b = button(lab, partial(self._run_and_close, fn) if lab != "×" else fn)
+            b.setStyleSheet(tight)
+            lay.addWidget(b)
         self.go("suggest")
         self.back_timer.start(ms)
 

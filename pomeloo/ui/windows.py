@@ -252,6 +252,7 @@ class SettingsDialog(GlassMixin, QDialog):
         right.addWidget(section("Notch"))
         self._toggles(right, (("notch", "Show the notch",
                                "A pill at the top of the screen: shelf, drop zones, progress, phone and more."),))
+        self.size_seg = self._choice(right, "Size", ["small", "normal"], settings.get("notch_size", "normal"))
         self.position = self._choice(right, "Position", ["left", "center", "right"], settings["notch_position"])
         self.screen_seg = self._choice(right, "Screen", ["primary", "cursor"], settings["notch_screen"],
                                        {"primary": "Main", "cursor": "Follow cursor"})
@@ -320,6 +321,7 @@ class SettingsDialog(GlassMixin, QDialog):
         self._result = {**self.s, "keys": keys, "hotkey": self.hotkey.text().strip().lower() or "ctrl+shift+space",
                         "ocr_hotkey": self.ocr_hotkey.text().strip().lower() or "win+ctrl+t",
                         "notch_position": self.position.value(), "notch_screen": self.screen_seg.value(),
+                        "notch_size": self.size_seg.value(),
                         **{k: t.isChecked() for k, t in self.toggles.items()}}
         self.accept()
 

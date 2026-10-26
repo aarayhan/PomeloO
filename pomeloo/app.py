@@ -25,7 +25,7 @@ TICK = APPDIR / "tick.wav"
 DEFAULTS = {"keys": {"shift": "convert", "ctrl": "tools", "alt": "actions"}, "hotkey": "ctrl+shift+space",
             "drag_wheel": True, "show_pad": True, "sound": True, "fix_whatsapp_overlay": True,
             "start_with_windows": True, "recipes": [], "ocr_hotkey": "win+ctrl+t", "paste_images": True,
-            "notch": True, "notch_position": "center", "notch_screen": "primary", "notch_progress": True,
+            "notch": True, "notch_position": "center", "notch_screen": "primary", "notch_size": "normal", "notch_progress": True,
             "notch_downloads": True, "notch_screenshots": True, "notch_clipboard": True, "notch_recent": True,
             "notch_phone": True}
 user32 = ctypes.windll.user32
