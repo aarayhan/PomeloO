@@ -1,5 +1,9 @@
 **Drag a file, tap a key, pick a format.** PomeloO converts and edits files on your own PC: nothing is uploaded.
 
+## New in 1.1.5
+- **Smaller notch**: Settings → Notch → **Size → Small** makes the pill, the notices and the ideas strip smaller.
+  The panel and the drop zones keep their room.
+
 ## New in 1.1.4
 - **Notch on battery saver**: hovering the notch and moving away no longer leaves a blank black box on screen.
 
