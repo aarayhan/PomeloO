@@ -1,5 +1,8 @@
 **Drag a file, tap a key, pick a format.** PomeloO converts and edits files on your own PC: nothing is uploaded.
 
+## New in 1.1.4
+- **Notch on battery saver**: hovering the notch and moving away no longer leaves a blank black box on screen.
+
 ## New in 1.1.3
 - **Settings fits small screens**: it opens no taller than the screen, scrolls, and can be resized from the
   bottom-right corner, so **Save** is always in reach.
