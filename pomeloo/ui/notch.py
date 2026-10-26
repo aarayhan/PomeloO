@@ -120,8 +120,10 @@ class Notch(QWidget):
         target = self._rect(state)
         self.anim.stop()
         if battery_saver():
-            self.setGeometry(target)
+            # page first: shrinking while the big panel page is still current leaves the window stuck at the
+            # panel's minimum size (a blank black box)
             self._settle()
+            self.setGeometry(target)
             return
         # growing: the bigger page goes in once the slide is done (mid-slide frames are smaller than it);
         # shrinking: the smaller page goes in first
