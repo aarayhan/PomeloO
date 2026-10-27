@@ -140,3 +140,4 @@ pomeloo --register        # or --unregister: the Explorer right-click menu (curr
 
 Inspired by the drag-and-tap converter idea of Tangerine for macOS. PomeloO is an independent,
 from-scratch project and is not affiliated with it.
+---
