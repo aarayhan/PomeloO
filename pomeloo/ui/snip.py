@@ -1,4 +1,4 @@
-"""Copy text from the screen: hotkey -> drag over it -> the text (and any QR code) is on the clipboard.
+"""Copy text from the screen: hotkey -> drag over it -> the text (or a QR code's contents) is on the clipboard.
 
 The overlay is built once and kept hidden so it appears instantly; the OCR engine is warmed up at
 start (tools/detect.warm_up). A freshly copied image (last 30 s) is read directly, without a snip."""
@@ -72,7 +72,7 @@ class Snip(QWidget):
             g.drawRect(r)
         g.setPen(QColor(255, 255, 255, 220))
         g.drawText(self.rect().adjusted(0, 24, 0, 0), Qt.AlignHCenter | Qt.AlignTop,
-                   "Drag over the text to copy it  ·  Esc to cancel")
+                   "Drag over text or a QR code to copy it  ·  Esc to cancel")
         g.end()
 
     def mousePressEvent(self, e):
@@ -104,17 +104,26 @@ def _to_pil(img: QImage):
                             img.bytesPerLine(), 1).copy()
 
 
-def read_image(pil) -> str:
-    """OCR text plus any QR / barcode contents."""
+def read_codes(pil) -> list[str]:
+    """QR / barcode contents, in reading order, without repeats."""
     import zxingcpp
+    from PIL import Image
+    codes = [b.text for b in zxingcpp.read_barcodes(pil) if b.text]
+    if not codes and max(pil.size) < 1000:  # a small QR on screen reads better enlarged
+        big = pil.resize((pil.width * 2, pil.height * 2), Image.NEAREST)
+        codes = [b.text for b in zxingcpp.read_barcodes(big) if b.text]
+    return list(dict.fromkeys(codes))
+
+
+def read_image(pil) -> tuple[str, bool]:
+    """(text, is_code): a QR / barcode's contents if there is one, otherwise the OCR text."""
     from ..tools.detect import ocr_text
-    text = ocr_text(pil)
-    codes = [b.text for b in zxingcpp.read_barcodes(pil) if b.text and b.text not in text]
-    return "\n".join([t for t in [text, *codes] if t])
+    codes = read_codes(pil)
+    return ("\n".join(codes), True) if codes else (ocr_text(pil), False)
 
 
 class ScreenText(QObject):
-    done = Signal(str, str)  # text, error
+    done = Signal(str, bool, str)  # text, is_code, error
 
     def __init__(self):
         super().__init__()
@@ -138,16 +147,19 @@ class ScreenText(QObject):
 
         def work():
             try:
-                self.done.emit(read_image(pil), "")
+                self.done.emit(*read_image(pil), "")
             except Exception as e:  # shown in the toast, never swallowed
-                self.done.emit("", str(e) or e.__class__.__name__)
+                self.done.emit("", False, str(e) or e.__class__.__name__)
         threading.Thread(target=work, daemon=True).start()
 
-    def _finish(self, text, err):
+    def _finish(self, text, is_code, err):
         if err:
             return self.toast.show_text(f"Couldn't read it: {err}")
         if not text:
             return self.toast.show_text("No text found")
         QApplication.clipboard().setText(text)
+        if is_code:
+            link = text.startswith(("http://", "https://"))
+            return self.toast.show_text(f"Copied QR {'link' if link else 'code'} · {text[:48]}")
         words = len(text.split())
         self.toast.show_text(f"Copied · {words} word{'s' * (words != 1)}")

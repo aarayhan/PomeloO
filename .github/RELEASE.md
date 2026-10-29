@@ -1,5 +1,9 @@
 **Drag a file, tap a key, pick a format.** PomeloO converts and edits files on your own PC: nothing is uploaded.
 
+## New in 1.1.7
+- **Copy a QR link from the screen**: press **Win+Ctrl+T** and drag over a QR code; only its contents (the link)
+  are copied, not the text around it. Even small QR codes on screen are read.
+
 ## New in 1.1.6
 - **PomeloO updates itself.** Once a day it checks GitHub for a new version, downloads it, checks its SHA-256 and
   installs it while you're not using the PC (nothing running, no window open), then starts again. Tray →
