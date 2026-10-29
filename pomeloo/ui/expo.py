@@ -14,7 +14,7 @@ from PySide6.QtGui import QCursor, QGuiApplication, QImage, QPixmap
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 SITE = "https://pomeloo.netlify.app"
-IDLE_S = 45        # seconds without input before the attract card shows
+IDLE_S = 25        # seconds without input before the attract card shows
 MARK = ".pomeloo-demo"  # only a folder holding this file is ever emptied
 ORDER = ["Win", "Ctrl", "Alt", "Shift"]
 VKS = ([(0x5B, "Win"), (0x5C, "Win"), (0x11, "Ctrl"), (0x12, "Alt"), (0x10, "Shift"), (0x20, "Space"),
