@@ -1,10 +1,5 @@
 **Drag a file, tap a key, pick a format.** PomeloO converts and edits files on your own PC: nothing is uploaded.
 
-## New in 1.1.9: Exhibition mode
-- **Tray → Exhibition mode** for demo booths: the keys you press show up big on screen, an idle card invites
-  visitors to try three things (with a QR code to the website), notices are big, and updates wait until it's off.
-- **Tray → Reset demo folder**: fresh sample files in `Desktop\PomeloO Demo`, cleared between visitors.
-
 ## New in 1.1.8
 - **QR codes on posters**: Win+Ctrl+T now reads a QR code printed straight onto a colored background with no white
   margin around it (it used to say "No text found").

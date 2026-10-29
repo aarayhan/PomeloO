@@ -13,8 +13,7 @@ FRESH = 30  # seconds a copied image counts as "just copied"
 
 
 class Toast(QWidget):
-    """Small pill near the cursor that fades away by itself (big and centered in Exhibition mode)."""
-    big = False
+    """Small pill near the cursor that fades away by itself."""
 
     def __init__(self):
         super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.WindowTransparentForInput)
@@ -29,15 +28,9 @@ class Toast(QWidget):
         self.timer = QTimer(self, singleShot=True, interval=1800, timeout=self.hide)
 
     def show_text(self, text):
-        from .windows import PILL
         self.label.setText(text)
-        self.label.setStyleSheet(PILL + (" font-size: 26px; padding: 10px 26px;" if self.big else ""))
         self.adjustSize()
-        if self.big:
-            g = (QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()).geometry()
-            self.move(g.center() - self.rect().center())
-        else:
-            self.move(QCursor.pos() + QPoint(16, 18))
+        self.move(QCursor.pos() + QPoint(16, 18))
         self.show()
         self.raise_()
         self.timer.start()

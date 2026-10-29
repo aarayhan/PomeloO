@@ -27,7 +27,7 @@ DEFAULTS = {"keys": {"shift": "convert", "ctrl": "tools", "alt": "actions"}, "ho
             "start_with_windows": True, "recipes": [], "ocr_hotkey": "win+ctrl+t", "paste_images": True,
             "notch": True, "notch_position": "center", "notch_screen": "primary", "notch_size": "normal", "auto_update": True, "notch_progress": True,
             "notch_downloads": True, "notch_screenshots": True, "notch_clipboard": True, "notch_recent": True,
-            "notch_phone": True, "exhibition": False}
+            "notch_phone": True}
 user32 = ctypes.windll.user32
 
 
@@ -187,8 +187,6 @@ class App(QObject):
         from .recipes import Watcher
         self.watch = Watcher(self._run_watched)
         self.watch.set_recipes(self.settings["recipes"])
-        from .ui.expo import Expo
-        self.expo = Expo(self)
         self._build_tray()
         if not self.native:
             self.tray.showMessage("PomeloO", "Native helpers not built (scripts/build.ps1): no wheel while dragging.")
@@ -228,11 +226,6 @@ class App(QObject):
         m.addAction("History…", self.open_history)
         m.addAction("Settings…", self.open_settings)
         m.addAction("Check for updates…", lambda: self.updater.check(manual=True))
-        m.addSeparator()
-        expo = QAction("Exhibition mode", m, checkable=True, checked=self.settings["exhibition"])
-        expo.toggled.connect(lambda on: (self.expo.set_on(on), self._set("exhibition", on)))
-        m.addAction(expo)
-        m.addAction("Reset demo folder", self.expo.reset_folder)
         m.addSeparator()
         m.addAction("Add to Explorer menu", lambda: self.tray.showMessage(
             "PomeloO", f"Registered {shell.register(self.settings['recipes'])} keys."))
@@ -278,11 +271,8 @@ class App(QObject):
         if not (self._notch_on() and self.notch.isVisible() and self.notch.toast(message, 5000)):
             self.tray.showMessage("PomeloO", message)
 
-    def busy(self, expo=True) -> bool:
-        """Something the user would lose if PomeloO closed now (the self-update waits for this). A booth in
-        Exhibition mode counts as busy: an update must not quit the app mid-demo."""
-        if expo and self.settings["exhibition"]:
-            return True
+    def busy(self) -> bool:
+        """Something the user would lose if PomeloO closed now (the self-update waits for this)."""
         notch = self._notch_on() and (self.notch.jobs.running() or self.notch.phone.active())
         open_windows = any(w.isVisible() for w in QApplication.topLevelWidgets()
                            if isinstance(w, QDialog) or w in self.windows)
