@@ -104,6 +104,17 @@ def _to_pil(img: QImage):
                             img.bytesPerLine(), 1).copy()
 
 
+def _bleach(pil):
+    """Colored pixels -> white. Posters often print a QR straight onto a dark colored background with no
+    white margin, so its corner squares merge into the background; this gives the code its margin back."""
+    import numpy as np
+    from PIL import Image
+    a = np.asarray(pil.convert("RGB"))
+    out = a.copy()
+    out[a.max(2).astype(np.int16) - a.min(2) > 48] = 255
+    return Image.fromarray(out)
+
+
 def read_codes(pil) -> list[str]:
     """QR / barcode contents, in reading order, without repeats."""
     import zxingcpp
@@ -112,6 +123,8 @@ def read_codes(pil) -> list[str]:
     if not codes and max(pil.size) < 1000:  # a small QR on screen reads better enlarged
         big = pil.resize((pil.width * 2, pil.height * 2), Image.NEAREST)
         codes = [b.text for b in zxingcpp.read_barcodes(big) if b.text]
+    if not codes:
+        codes = [b.text for b in zxingcpp.read_barcodes(_bleach(pil)) if b.text]
     return list(dict.fromkeys(codes))
 
 

@@ -1,6 +1,6 @@
 [project]
 name = "pomeloo"
-version = "1.1.7"
+version = "1.1.8"
 description = "Local file converter and file tools for Windows: drag a file, tap a key, pick a format."
 requires-python = ">=3.12"
 readme = "README.md"

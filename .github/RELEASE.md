@@ -1,5 +1,9 @@
 **Drag a file, tap a key, pick a format.** PomeloO converts and edits files on your own PC: nothing is uploaded.
 
+## New in 1.1.8
+- **QR codes on posters**: Win+Ctrl+T now reads a QR code printed straight onto a colored background with no white
+  margin around it (it used to say "No text found").
+
 ## New in 1.1.7
 - **Copy a QR link from the screen**: press **Win+Ctrl+T** and drag over a QR code; only its contents (the link)
   are copied, not the text around it. Even small QR codes on screen are read.
