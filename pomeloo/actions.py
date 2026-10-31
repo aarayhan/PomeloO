@@ -80,7 +80,7 @@ def share(paths, hwnd=0):
     """Open the Windows share sheet (Nearby Share, Mail, Phone Link…) via the shell's
     'Windows.ModernShare' verb, the same entry Explorer's context menu uses."""
     try:
-        from win32com.shell import shell
+        from win32com.shell import shell, shellcon
         import win32con
         import win32gui
         parent = Path(paths[0]).parent
@@ -90,9 +90,23 @@ def share(paths, hwnd=0):
         kids = [sub.ParseDisplayName(0, None, Path(p).name)[1] for p in paths if Path(p).parent == parent]
         _, cm = sub.GetUIObjectOf(hwnd, kids, shell.IID_IContextMenu, 0)
         menu = win32gui.CreatePopupMenu()
-        cm.QueryContextMenu(menu, 0, 1, 0x7FFF, 0)
-        cm.InvokeCommand((0, hwnd, "Windows.ModernShare", None, None, win32con.SW_SHOWNORMAL, 0, None))
-        win32gui.DestroyMenu(menu)
+        try:
+            cm.QueryContextMenu(menu, 0, 1, 0x7FFF, 0)
+            # Invoke by the item's number, never by the verb text: pywin32 kills the whole process (an access
+            # violation, not a Python exception) when InvokeCommand gets "Windows.ModernShare" as a string.
+            offset = None
+            for pos in range(win32gui.GetMenuItemCount(menu)):
+                if 0 < (cid := win32gui.GetMenuItemID(menu, pos)) < 0x7FFF:
+                    try:
+                        if cm.GetCommandString(cid - 1, shellcon.GCS_VERBW) == "Windows.ModernShare":
+                            offset = cid - 1
+                    except Exception:
+                        pass  # separators and submenus have no verb
+            if offset is None:
+                raise RuntimeError("these files have no Share command")
+            cm.InvokeCommand((0, hwnd, offset, None, None, win32con.SW_SHOWNORMAL, 0, None))
+        finally:
+            win32gui.DestroyMenu(menu)
     except Exception as e:
         QMessageBox.warning(None, "PomeloO", f"Windows share sheet unavailable: {e}")
 
