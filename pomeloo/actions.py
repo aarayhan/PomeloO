@@ -3,7 +3,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from PySide6.QtCore import QFileInfo, QMimeData, QPoint, Qt, QUrl
+from PySide6.QtCore import QFileInfo, QMimeData, QPoint, Qt, QTimer, QUrl
 from PySide6.QtGui import QDrag, QGuiApplication
 from PySide6.QtWidgets import (QApplication, QFileDialog, QFileIconProvider, QHBoxLayout, QLabel,
                                QListWidget, QListWidgetItem, QMessageBox, QPushButton, QVBoxLayout,
@@ -76,39 +76,75 @@ def terminal(paths):
         subprocess.Popen(["cmd.exe", "/K", f"cd /d {folder}"], creationflags=subprocess.CREATE_NEW_CONSOLE)
 
 
-def share(paths, hwnd=0):
-    """Open the Windows share sheet (Nearby Share, Mail, Phone Link…) via the shell's
-    'Windows.ModernShare' verb, the same entry Explorer's context menu uses."""
+# The share sheet is WinRT's DataTransferManager shown for a window of the calling process. Windows PowerShell
+# 5.1 (always present) projects WinRT, so a small helper process hosts it: a tiny window at the cursor, the files
+# as StorageItems, then ShowShareUIForWindow. Keeping it out of the tray app also means a failure there can't
+# take PomeloO down. (The old IContextMenu "Windows.ModernShare" route gave "Invalid window handle" and, with the
+# verb as text, an access violation in pywin32 that killed the whole app.)
+SHARE_PS = r"""
+$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'
+try {
+Add-Type -AssemblyName System.Windows.Forms, System.Runtime.WindowsRuntime
+Add-Type -TypeDefinition @'
+using System; using System.Runtime.InteropServices;
+[ComImport, Guid("3A3DCD6C-3EAB-43DC-BCDE-45671CE800C8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IDataTransferManagerInterop {
+    IntPtr GetForWindow([In] IntPtr appWindow, [In] ref Guid riid);
+    void ShowShareUIForWindow(IntPtr appWindow);
+}
+public static class ShareInterop {
+    public static IntPtr ForWindow(object f, IntPtr h, Guid iid) { return ((IDataTransferManagerInterop)f).GetForWindow(h, ref iid); }
+    public static void Show(object f, IntPtr h) { ((IDataTransferManagerInterop)f).ShowShareUIForWindow(h); }
+}
+'@
+$null = [Windows.ApplicationModel.DataTransfer.DataTransferManager, Windows.ApplicationModel.DataTransfer, ContentType = WindowsRuntime]
+$null = [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
+$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
+function Await($op, [type]$t) { $task = $asTask.MakeGenericMethod($t).Invoke($null, @($op)); $task.Wait(); $task.Result }
+$items = New-Object 'System.Collections.Generic.List[Windows.Storage.IStorageItem]'
+foreach ($p in ($env:POMELOO_SHARE | ConvertFrom-Json)) {
+    if (Test-Path -LiteralPath $p -PathType Container) { $items.Add((Await ([Windows.Storage.StorageFolder]::GetFolderFromPathAsync($p)) ([Windows.Storage.StorageFolder]))) }
+    else { $items.Add((Await ([Windows.Storage.StorageFile]::GetFileFromPathAsync($p)) ([Windows.Storage.StorageFile]))) }
+}
+$form = New-Object System.Windows.Forms.Form
+$form.FormBorderStyle = 'None'; $form.ShowInTaskbar = $false; $form.StartPosition = 'Manual'; $form.TopMost = $true
+$form.Location = [System.Windows.Forms.Cursor]::Position; $form.Size = New-Object System.Drawing.Size(2, 2)
+$form.Show()
+$factory = [System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeMarshal]::GetActivationFactory([Windows.ApplicationModel.DataTransfer.DataTransferManager])
+$ptr = [ShareInterop]::ForWindow($factory, $form.Handle, [Guid]'A5CAEE9B-8708-49D1-8D36-67D25A8DA00C')
+$dtm = [System.Runtime.InteropServices.Marshal]::GetObjectForIUnknown($ptr)
+$dtm.add_DataRequested([Windows.Foundation.TypedEventHandler[Windows.ApplicationModel.DataTransfer.DataTransferManager, Windows.ApplicationModel.DataTransfer.DataRequestedEventArgs]]{
+    param($s, $e)
+    $e.Request.Data.Properties.Title = 'Shared from PomeloO'
+    $e.Request.Data.SetStorageItems($items)
+}) | Out-Null
+[ShareInterop]::Show($factory, $form.Handle)
+$timer = New-Object System.Windows.Forms.Timer; $timer.Interval = 300000  # a transfer may outlive the sheet
+$timer.Add_Tick({ $form.Close() }); $timer.Start()
+[System.Windows.Forms.Application]::Run($form)
+} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }  # plain text: -EncodedCommand forces CLIXML otherwise
+"""
+
+
+def share(paths):
+    """Open the Windows share sheet (Nearby Share, Phone Link, Mail, WhatsApp…) for these files and folders."""
+    import base64
+    import json
+    import os
+    script = base64.b64encode(SHARE_PS.encode("utf-16-le")).decode()
     try:
-        from win32com.shell import shell, shellcon
-        import win32con
-        import win32gui
-        parent = Path(paths[0]).parent
-        folder = shell.SHGetDesktopFolder()
-        _, pidl, _ = folder.ParseDisplayName(0, None, str(parent))
-        sub = folder.BindToObject(pidl, None, shell.IID_IShellFolder)
-        kids = [sub.ParseDisplayName(0, None, Path(p).name)[1] for p in paths if Path(p).parent == parent]
-        _, cm = sub.GetUIObjectOf(hwnd, kids, shell.IID_IContextMenu, 0)
-        menu = win32gui.CreatePopupMenu()
-        try:
-            cm.QueryContextMenu(menu, 0, 1, 0x7FFF, 0)
-            # Invoke by the item's number, never by the verb text: pywin32 kills the whole process (an access
-            # violation, not a Python exception) when InvokeCommand gets "Windows.ModernShare" as a string.
-            offset = None
-            for pos in range(win32gui.GetMenuItemCount(menu)):
-                if 0 < (cid := win32gui.GetMenuItemID(menu, pos)) < 0x7FFF:
-                    try:
-                        if cm.GetCommandString(cid - 1, shellcon.GCS_VERBW) == "Windows.ModernShare":
-                            offset = cid - 1
-                    except Exception:
-                        pass  # separators and submenus have no verb
-            if offset is None:
-                raise RuntimeError("these files have no Share command")
-            cm.InvokeCommand((0, hwnd, offset, None, None, win32con.SW_SHOWNORMAL, 0, None))
-        finally:
-            win32gui.DestroyMenu(menu)
-    except Exception as e:
-        QMessageBox.warning(None, "PomeloO", f"Windows share sheet unavailable: {e}")
+        helper = subprocess.Popen(
+            ["powershell.exe", "-NoProfile", "-STA", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass",
+             "-EncodedCommand", script], env={**os.environ, "POMELOO_SHARE": json.dumps([str(p) for p in paths])},
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW)
+    except OSError as e:
+        return QMessageBox.warning(None, "PomeloO", f"Windows share sheet unavailable: {e}")
+
+    def check():  # a helper that already ended with an error never opened the sheet
+        if helper.poll() not in (None, 0) and (why := helper.stderr.read().strip()):
+            QMessageBox.warning(None, "PomeloO", f"Windows share sheet unavailable: {why[:400]}")
+    QTimer.singleShot(10_000, check)
 
 
 class Shelf(QWidget):
