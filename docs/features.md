@@ -124,3 +124,9 @@ private copy of LibreOffice once (official build, checksum-verified) so slides c
   Private networks.
 - Wheel-while-dragging and Ctrl+V-in-folders watch the keyboard state only to spot those gestures;
   nothing is recorded.
+
+## Questions
+- **Is it free?** Yes: no ads, no account, GNU AGPL-3.0.
+- **Does it work offline?** Yes. Conversions, tools and OCR run on the PC. Only the update check, the one-time LibreOffice download (if needed) and phone transfer use the network.
+- **Is anything uploaded?** No. Files never leave the PC; phone transfer goes straight to a phone on the same network.
+- **Which Windows versions?** Windows 10 (1809 or newer) and Windows 11, 64-bit.

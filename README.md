@@ -7,7 +7,8 @@
 
 <p align="center">
   <b>Drag a file, tap a key, pick a format.</b><br>
-  A fast file converter and file toolbox for Windows. Everything happens on your PC: nothing is uploaded.
+  A fast, free file converter and file toolbox for Windows, and a Windows alternative to Tangerine for macOS. Everything happens on your PC: nothing is uploaded.<br>
+  <a href="https://pomeloo.netlify.app">pomeloo.netlify.app</a>: website and how-to guides in English and Bahasa Indonesia.
 </p>
 
 <p align="center">

@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use PomeloO, please cite it like this."
+title: "PomeloO"
+type: software
+authors:
+  - alias: "aarayhan"
+repository-code: "https://github.com/aarayhan/PomeloO"
+url: "https://pomeloo.netlify.app"
+license: AGPL-3.0-only
+abstract: "A free, open-source file converter and toolbox for Windows: drag a file, tap a key, pick a format. Everything is processed on the PC."

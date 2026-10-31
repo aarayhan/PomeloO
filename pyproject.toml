@@ -4,6 +4,7 @@ version = "1.1.8"
 description = "Local file converter and file tools for Windows: drag a file, tap a key, pick a format."
 requires-python = ">=3.12"
 readme = "README.md"
+keywords = ["file-converter", "windows", "ocr", "qr-code", "image-converter", "video-converter", "pdf", "explorer", "tangerine-alternative"]
 license = "AGPL-3.0-only"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 dependencies = [
@@ -13,6 +14,12 @@ dependencies = [
   "winrt-Windows.Storage", "winrt-Windows.Storage.Streams", "winrt-Windows.Globalization",
   "winrt-Windows.Foundation", "winrt-Windows.Foundation.Collections",
 ]
+
+[project.urls]
+Homepage = "https://pomeloo.netlify.app"
+Source = "https://github.com/aarayhan/PomeloO"
+Issues = "https://github.com/aarayhan/PomeloO/issues"
+Changelog = "https://github.com/aarayhan/PomeloO/releases"
 
 [project.scripts]
 pomeloo = "pomeloo.__main__:main"
