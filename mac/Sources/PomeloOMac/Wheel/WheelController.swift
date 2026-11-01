@@ -6,20 +6,23 @@ import PomeloOCore
 @MainActor
 final class WheelController: NSObject, NSWindowDelegate {
     private let service: ConversionService
+    private let tools: ToolService
     private let panel: FloatingPanel
     private let view = WheelView()
     private var hideTimer: Timer?
 
-    /// Called when files are dropped on a format, or one is picked with the keyboard.
-    var onConvert: (([URL], String) -> Void)?
+    /// Called when files are dropped on a petal, or one is picked with the keyboard: the wheel it was on, the
+    /// petal (a format or a tool id) and the files.
+    var onChoose: ((WheelMode, String, [URL]) -> Void)?
 
     /// How long the pointer may be away from the wheel before it closes (the Windows wheel waits 350 ms).
     private let leaveDelay: TimeInterval = 0.35
     /// How long after the mouse button is let go a wheel nobody dropped on stays (400 ms on Windows).
     private let releaseDelay: TimeInterval = 0.4
 
-    init(service: ConversionService) {
+    init(service: ConversionService, tools: ToolService) {
         self.service = service
+        self.tools = tools
         panel = FloatingPanel(size: view.frame.size, level: .popUpMenu)
         super.init()
         panel.contentView = view
@@ -32,24 +35,29 @@ final class WheelController: NSObject, NSWindowDelegate {
     // MARK: showing
 
     /// Under the pointer while a file is being dragged and a key was tapped: empty until the drag enters it.
-    func showForGesture(at point: NSPoint) {
-        present(files: [], keyboard: false, around: point)
+    func showForGesture(mode: WheelMode, at point: NSPoint) {
+        present(files: [], mode: mode, keyboard: false, around: point)
     }
 
     /// Opened with the shortcut for files that are already known; arrows and Enter drive it.
     func showForKeyboard(files: [URL], at point: NSPoint) {
-        present(files: files, keyboard: true, around: point)
+        present(files: files, mode: .convert, keyboard: true, around: point)
     }
 
     /// Around a point (screen coordinates) for a drag that starts on the drop pad.
-    func show(files: [URL], around point: NSPoint) {
-        present(files: files, keyboard: false, around: point)
+    func show(files: [URL], mode: WheelMode, around point: NSPoint) {
+        present(files: files, mode: mode, keyboard: false, around: point)
     }
 
-    private func present(files: [URL], keyboard: Bool, around point: NSPoint) {
+    /// Another wheel for the same files (a different key was tapped). Ignored for wheels that do not exist yet.
+    func switchMode(_ mode: WheelMode) {
+        if view.model.setMode(mode) { view.needsDisplay = true }
+    }
+
+    private func present(files: [URL], mode: WheelMode, keyboard: Bool, around point: NSPoint) {
         hideTimer?.invalidate()
+        view.model = WheelModel(urls: files, service: service, tools: tools, mode: mode)
         view.model.setKeyboard(keyboard)
-        view.model.setSelection(files, service: service)
         let size = view.frame.size
         var origin = NSPoint(x: point.x - WheelGeometry.size / 2, y: point.y + WheelGeometry.size / 2 - size.height)
         if let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }) ?? NSScreen.main {
@@ -90,7 +98,7 @@ final class WheelController: NSObject, NSWindowDelegate {
 
     func dragEntered(files: [URL], at point: CGPoint) {
         hideTimer?.invalidate()
-        if !files.isEmpty, files != view.model.urls { view.model.setSelection(files, service: service) }
+        if !files.isEmpty, files != view.model.urls { view.model.setSelection(files, service: service, tools: tools) }
         dragMoved(to: point)
     }
 
@@ -136,10 +144,18 @@ final class WheelController: NSObject, NSWindowDelegate {
     private func chooseHotPetal() -> Bool {
         let chosen = view.model.chosen
         let files = view.model.urls
+        let mode = view.model.mode
         hide()
         guard let chosen else { return false }
-        onConvert?(files, chosen.id)
+        onChoose?(mode, chosen.id, files)
         return true
+    }
+
+    /// A modifier key pressed on the keyboard wheel opens that key's wheel (Shift converts, Control the tools).
+    func modifierPressed(_ flags: NSEvent.ModifierFlags) {
+        let held = flags.intersection([.shift, .control, .option])
+        let key: GestureKey? = held == .shift ? .shift : held == .control ? .control : held == .option ? .option : nil
+        if let key, let mode = GestureKeys.defaults[key] { switchMode(mode) }
     }
 
     /// The keyboard wheel closes when it loses focus (a click elsewhere, another app coming forward).

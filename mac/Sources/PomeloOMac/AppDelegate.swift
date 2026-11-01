@@ -15,21 +15,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var wheel: WheelController?
     private var coordinator: ConversionCoordinator?
     private var gestures: DragGestureMonitor?
+    private let dialogs = ToolDialogController()
     private var hotKey: GlobalHotKey?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [Self.showPadKey: true, Self.useFinderKey: true])
 
-        let service = ConversionService()
-        let coordinator = ConversionCoordinator(service: service)
-        let wheel = WheelController(service: service)
+        // conversions and tools share one job runner (one progress) and one set of reserved names
+        let runner = JobRunner()
+        let names = NameReserver()
+        let service = ConversionService(runner: runner, names: names)
+        let tools = ToolService(runner: runner, names: names)
+        let coordinator = ConversionCoordinator(service: service, tools: tools)
+        let wheel = WheelController(service: service, tools: tools)
         let pad = DropPad()
         self.coordinator = coordinator
         self.wheel = wheel
         self.pad = pad
 
-        wheel.onConvert = { [weak coordinator] files, target in coordinator?.convert(files, to: target) }
-        pad.onFilesEntered = { [weak wheel] files, center in wheel?.show(files: files, around: center) }
+        wheel.onChoose = { [weak self, weak coordinator] mode, item, files in
+            switch mode {
+            case .convert: coordinator?.convert(files, to: item)
+            case .tools: self?.openTool(item, files: files)
+            case .actions: break  // the Actions wheel does not exist yet
+            }
+        }
+        pad.onFilesEntered = { [weak wheel] files, center in wheel?.show(files: files, mode: Self.modeOfHeldKey(), around: center) }
         coordinator.onProgress = { [weak self] fraction in self?.showProgress(fraction) }
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -53,15 +64,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startShortcut(wheel: wheel, coordinator: coordinator)
     }
 
-    /// Drag a file anywhere, tap Shift, and the wheel opens under the pointer. Only the Convert wheel exists
-    /// so far; Control and Option are mapped to Tools and Actions (the Windows keys) for when those arrive.
+    /// Drag a file anywhere and tap Shift (Convert) or Control (Tools): the wheel opens under the pointer, and
+    /// another key tapped while it is open switches wheels. Option is Actions, which do not exist yet.
     private func startGestures(wheel: WheelController) {
         let monitor = DragGestureMonitor()
         monitor.onEvent = { [weak wheel] event, pointer in
             guard let wheel else { return }
             switch event {
             case let .keyTapped(key):
-                if GestureKeys.defaults[key] == .convert, !wheel.isVisible { wheel.showForGesture(at: pointer) }
+                guard let mode = GestureKeys.defaults[key], WheelModel.availableModes.contains(mode) else { break }
+                if wheel.isVisible { wheel.switchMode(mode) } else { wheel.showForGesture(mode: mode, at: pointer) }
             case .dragEnded:
                 wheel.dragSessionEnded()
             case .dragBegan:
@@ -115,6 +127,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let agreed = alert.runModal() == .alertFirstButtonReturn
         if !agreed { UserDefaults.standard.set(false, forKey: useFinderKey) }
         return agreed
+    }
+
+    /// The wheel for the key held while files enter the drop pad: Control opens Tools, anything else Convert.
+    private static func modeOfHeldKey() -> WheelMode {
+        let held = NSEvent.modifierFlags.intersection([.shift, .control, .option])
+        return held == .control ? .tools : .convert
+    }
+
+    /// A tool was chosen on the wheel: the ones with settings ask first, the others run at once.
+    private func openTool(_ toolID: String, files: [URL]) {
+        guard let coordinator else { return }
+        if let invocation = ToolForms.invocationWithoutDialog(toolID: toolID) {
+            coordinator.run(invocation, on: files)
+            return
+        }
+        dialogs.show(toolID: toolID, files: files, catalog: coordinator.tools.catalog) { [weak coordinator] invocation, ordered in
+            coordinator?.run(invocation, on: ordered)
+        }
     }
 
     /// Files on the clipboard (what Finder copies with ⌘C).

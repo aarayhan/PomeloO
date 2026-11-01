@@ -7,7 +7,8 @@ final class DropPad {
     private let panel = FloatingPanel(size: NSSize(width: 68, height: 68))
     private let view = DropPadView()
 
-    /// Files were dragged onto the pad; the point is the middle of the pad on screen.
+    /// Files were dragged onto the pad; the point is the middle of the pad on screen. The key held at that moment
+    /// (Shift, Control) picks the wheel.
     var onFilesEntered: (([URL], NSPoint) -> Void)?
     var menu: NSMenu?
 

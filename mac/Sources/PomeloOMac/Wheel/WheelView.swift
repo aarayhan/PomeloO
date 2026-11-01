@@ -27,6 +27,15 @@ final class WheelView: NSView {
         controller?.key(event)
     }
 
+    private var lastFlags: NSEvent.ModifierFlags = []
+
+    /// A modifier going down on the keyboard wheel switches wheels; releasing one does nothing.
+    override func flagsChanged(with event: NSEvent) {
+        let now = event.modifierFlags.intersection([.shift, .control, .option])
+        if now.rawValue > lastFlags.rawValue || !now.subtracting(lastFlags).isEmpty { controller?.modifierPressed(now) }
+        lastFlags = now
+    }
+
     // MARK: drag destination
 
     private func files(_ info: NSDraggingInfo) -> [URL] {
@@ -132,6 +141,14 @@ final class WheelView: NSView {
                  font: .systemFont(ofSize: 12, weight: .bold), color: .white)
         drawText(model.countText, in: CGRect(x: c.x - inner, y: c.y - 2, width: 2 * inner, height: 18),
                  font: .systemFont(ofSize: 10), color: .rgb(161, 161, 170))
+
+        // one dot per wheel, the current one orange
+        let modes = WheelModel.availableModes
+        for (index, wheelMode) in modes.enumerated() {
+            let x = c.x + (Double(index) - Double(modes.count - 1) / 2) * 10
+            g.setFillColor((wheelMode == model.mode ? NSColor.hex(0xFF8A00) : NSColor.white.withAlphaComponent(60 / 255)).cgColor)
+            g.fillEllipse(in: CGRect(x: x - 3, y: c.y + 24 - 3, width: 6, height: 6))
+        }
 
         // hint pill under the wheel
         let hint = model.hint
