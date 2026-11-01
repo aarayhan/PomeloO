@@ -28,7 +28,12 @@ Folder ini berisi versi Mac dari PomeloO: file converter dan toolbox yang sampai
 - **Job runner sebagai actor** sejak awal, karena Swift 6 ketat soal concurrency.
 - **Pisahkan logika dari penangkap event.** State mesin roda ada di Core supaya bisa dites. Gestur global sulit diotomasi.
 - **Framework Apple dulu.** Gambar: ImageIO dan CoreImage. PDF: PDFKit. OCR, QR, deteksi wajah dan teks: Vision. Dokumen teks (DOCX, RTF, HTML, TXT): `NSAttributedString`.
-- **ffmpeg arm64 bawaan** untuk audio dan video yang tidak dijangkau AVFoundation (OGG, Opus, WMA, MKV, WebM, AVI, WMV). Taruh di `Contents/Resources/Tools/` lewat parameter ketiga `make-app.sh`, tandatangani helper sebelum app luar, dan periksa lisensi build ffmpeg serta perbarui `THIRD_PARTY_NOTICES.md`. ffmpeg belum terpasang di mesin pengembangan ini.
+- **WebP ditulis in-process oleh libwebp, SVG dibaca lewat NSImage.** ImageIO hanya membaca WebP, jadi target `CWebP` berisi sumber libwebp (BSD-3-Clause) yang disalin dari repo resmi oleh `mac/scripts/vendor-libwebp.sh`; EXIF dimasukkan dengan libwebpmux. WebP tidak lewat ffmpeg. SVG digambar oleh CoreSVG (`NSImage`) sampai sekitar 2000 px di sisi terpanjang, seperti versi Windows. **[BELUM DIUJI]** SVG di macOS 13 (diuji di 26.5.1).
+- **Gestur global (Fase 3) memakai pembacaan keadaan, bukan pemantau event.** `DragGestureMonitor` membaca `NSEvent.pressedMouseButtons`, `NSEvent.modifierFlags`, dan `changeCount` pasteboard seret (10 Hz, 30 Hz selagi tombol mouse ditekan); aturannya ada di `DragGestureDetector` (Core, bisa dites). Spike di macOS 26.5.1 tidak memunculkan dialog izin. Pintasan ⌃⇧Space memakai `RegisterEventHotKey` (tanpa izin).
+- **ffmpeg hanya untuk audio dan video** yang tidak dijangkau AVFoundation (OGG, Opus, WMA, MKV, WebM, AVI, WMV, dan MP3 sebagai target). Build rilis dibundel di `Contents/Resources/Tools/` lewat parameter ketiga `make-app.sh` (helper ditandatangani sebelum app luar) dan dibuat dari sumber resmi, arm64, **tanpa `--enable-gpl`**, lewat skrip tersendiri yang belum ada; itu tugas terpisah sebelum rilis pertama, bukan bagian Fase 4. Jangan mengunduh build statis dari situs pihak ketiga. `THIRD_PARTY_NOTICES.md` untuk libwebp dan ffmpeg dikerjakan di tugas yang sama.
+  - **Set encoder build rilis:** `h264_videotoolbox`, `hevc_videotoolbox`, `libvpx-vp9`, `libopus`, `libmp3lame`, ditambah encoder bawaan ffmpeg (`aac`, `flac`, PCM, GIF). `libx264` dan `libx265` **tidak** ada. VideoToolbox tidak mengenal CRF, jadi kompres ke ukuran target dihitung dari bitrate (ukuran dan durasi).
+  - **ffmpeg Homebrew hanya untuk pengembangan lokal lewat PATH dan tidak pernah dibundel** (GPL-3.0-or-later, `--enable-shared`, bergantung pada `.dylib` di `/opt/homebrew`). Tulis tool video terhadap set rilis, bukan terhadap Homebrew.
+  - Tool atau target yang butuh encoder yang tidak ada tidak boleh ditawarkan: turunkan dari pemeriksaan kapabilitas saat dijalankan (`FFmpegEncoders`, `availableTargets`).
 - **Konversi Office (PPTX, XLSX) dan Pages ditunda.** Tangerine memakai JVM dan JavaScript bawaan untuk itu, yang mahal untuk ukuran bundle. Mulai dari format yang bisa dikerjakan framework Apple dan ffmpeg.
 - **Tanpa sandbox.** Rilis lewat DMG dengan tanda tangan ad-hoc, bukan Mac App Store. Tanpa sandbox, pemantauan seret global dan peluncuran helper lebih sederhana. Kalau suatu saat ingin App Store, sandbox harus dirancang dari awal. Ini keputusan pemilik proyek.
 - Bundle ID (`app.pomeloo.mac`) dan macOS minimum (13.0) di `make-app.sh` tertulis sebagai asumsi. Tanyakan sebelum mengubah atau memastikannya.
@@ -45,18 +50,21 @@ Folder ini berisi versi Mac dari PomeloO: file converter dan toolbox yang sampai
 
 Kerjakan satu fase sekali jalan, hentikan setelah kriterianya terpenuhi, dan jangan lompat ke fase berikutnya sebelum tes fase sebelumnya hijau.
 
-| Fase | Isi | Selesai bila |
-|---|---|---|
-| 0 | `Package.swift`, menu bar kosong, build release arm64, lalu `make-app.sh` dan `make-dmg.sh` menghasilkan DMG | app terbuka di Mac dan ikon muncul di menu bar |
-| 1 | Core: protokol mesin, pemuat katalog, penamaan hasil, job runner dengan progres dan batal; konversi gambar (ImageIO) dan audio/video (ffmpeg) | `swift test` hijau; satu konversi gambar dan satu audio berjalan |
-| 2 | Pintu masuk UI: pad melayang untuk drop file, lalu roda format di kursor | drop file memilih format dan konversi jalan |
-| 3 | Gestur global (seret file di Finder lalu tap Shift, Ctrl, atau Alt) dan pintasan keyboard | roda muncul dari Finder |
-| 4 | Tool per jenis file (kompres, metadata, OCR, PDF, dan seterusnya), bertahap menurut pemakaian | tiap tool punya tes di Core |
-| 5 | Recipes, riwayat dengan undo, pembaruan | paritas dengan Windows |
+| Fase | Isi | Selesai bila | Status |
+|---|---|---|---|
+| 0 | `Package.swift`, menu bar kosong, build release arm64, lalu `make-app.sh` dan `make-dmg.sh` menghasilkan DMG | app terbuka di Mac dan ikon muncul di menu bar | selesai |
+| 1 | Core: protokol mesin, pemuat katalog, penamaan hasil, job runner dengan progres dan batal; konversi gambar (ImageIO) dan audio/video (ffmpeg) | `swift test` hijau; satu konversi gambar dan satu audio berjalan | selesai |
+| 2 | Pintu masuk UI: pad melayang untuk drop file, lalu roda format di kursor | drop file memilih format dan konversi jalan | selesai |
+| 3 | Gestur global (seret file di Finder lalu tap Shift, Ctrl, atau Alt) dan pintasan keyboard | roda muncul dari Finder | selesai |
+| 4 | Tool per jenis file (kompres, metadata, OCR, PDF, dan seterusnya), bertahap menurut pemakaian | tiap tool punya tes di Core | belum |
+| 5 | Recipes, riwayat dengan undo, pembaruan | paritas dengan Windows | belum |
+
+Fase 3 selesai dengan Shift; tap Control dan Option sudah dikenali tetapi belum membuka roda Tools dan Actions (Fase 4). **[BELUM DIUJI]** tap Control dan Option, dan macOS 13 sampai 15.
 
 ## Jebakan yang sudah diketahui
 
-- **Izin Accessibility hilang tiap build.** Tanda tangan ad-hoc berubah pada setiap build, jadi macOS menganggapnya app baru dan izin Accessibility atau Input Monitoring untuk gestur global harus diberikan ulang. Saat mengembangkan Fase 3, tandatangani dengan sertifikat lokal yang stabil. Ini belum jadi soal sebelum Fase 3.
+- **Gestur Fase 3 tidak butuh izin Accessibility atau Input Monitoring, jadi tidak butuh sertifikat penandatangan yang stabil.** Itu terverifikasi di macOS 26.5.1 dengan spike (tidak ada dialog, tidak ada permintaan di log sistem). **[BELUM DIUJI]**: tap Control dan Option, macOS 13 sampai 15, dan seret dari app selain Finder. Detailnya ada di `mac/docs/install.md`.
+- **Izin yang memang dibutuhkan fitur lain terikat pada tanda tangan ad-hoc.** Izin Automation (Apple Events, misalnya untuk membaca pilihan Finder) diberikan per tanda tangan, dan tanda tangan ad-hoc berubah tiap build, jadi tiap versi rilis baru kemungkinan memunculkan dialog lagi. **[BELUM DIUJI]**: belum dicoba di dua build ad-hoc berurutan. Kecuali ada Developer ID (akun berbayar, belum ada).
 - **Helper bertanda sandbox-inherit tidak bisa dijalankan sendiri.** Itu kasus di Tangerine; PomeloO tanpa sandbox tidak punya batasan ini. Jangan meniru entitlement itu.
 - **Mengubah isi `.app` setelah ditandatangani merusak segelnya.** Jalankan `make-app.sh` lagi, jangan mengedit bundle.
 - **Peringatan Gatekeeper** saat membuka DMG pertama kali sudah tercatat di `mac/docs/install.md` dan belum diuji.
