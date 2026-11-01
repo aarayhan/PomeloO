@@ -7,19 +7,19 @@ import ImageIO
 /// sRGB with straight alpha first, so wide-gamut photos keep their colours without an embedded profile.
 /// Camera metadata (EXIF) is added afterwards with libwebpmux.
 struct LibWebPEncoder: ImageEncoder {
-    private static let quality: Float = 90
     /// The largest side WebP can hold.
     private static let maxSide = 16_383
 
     var formats: Set<ImageFormat> { [.webp] }
 
-    func write(_ image: CGImage, as format: ImageFormat, metadata: [CFString: Any], to url: URL,
+    func write(_ image: CGImage, as format: ImageFormat, metadata: [CFString: Any], quality: Double, to url: URL,
                progress: @escaping @Sendable (Double) -> Void, cancel: CancelFlag) throws {
         guard max(image.width, image.height) <= Self.maxSide else {
             throw ConversionError.failed("WebP images can be at most \(Self.maxSide) pixels on a side.")
         }
         var pixels = try Self.straightRGBA(image)
-        let encoded = try encode(&pixels, width: image.width, height: image.height, progress: progress, cancel: cancel)
+        let encoded = try encode(&pixels, width: image.width, height: image.height, quality: Float(min(1, max(0, quality)) * 100),
+                                 progress: progress, cancel: cancel)
         let exif = ExifPayload.make(from: metadata)
         let data = exif.flatMap { Self.addingEXIF($0, to: encoded) } ?? encoded
         do { try data.write(to: url) } catch { throw ConversionError.cannotWrite(url.lastPathComponent) }
@@ -27,31 +27,8 @@ struct LibWebPEncoder: ImageEncoder {
 
     // MARK: pixels
 
-    /// 8-bit sRGB, red-green-blue-alpha, alpha not multiplied into the colours (what libwebp wants).
     static func straightRGBA(_ image: CGImage) throws -> [UInt8] {
-        let width = image.width, height = image.height
-        var data = [UInt8](repeating: 0, count: width * height * 4)
-        let drawn = data.withUnsafeMutableBytes { buffer -> Bool in
-            guard let context = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
-                                          bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
-            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-            return true
-        }
-        guard drawn else { throw ConversionError.failed("Not enough memory to convert this image.") }
-        data.withUnsafeMutableBufferPointer { p in
-            var i = 0
-            while i < p.count {
-                let a = Int(p[i + 3])
-                if a != 0 && a != 255 {  // undo the multiplication Core Graphics did
-                    p[i] = UInt8(min(255, (Int(p[i]) * 255 + a / 2) / a))
-                    p[i + 1] = UInt8(min(255, (Int(p[i + 1]) * 255 + a / 2) / a))
-                    p[i + 2] = UInt8(min(255, (Int(p[i + 2]) * 255 + a / 2) / a))
-                }
-                i += 4
-            }
-        }
-        return data
+        try ImagePixels.straightRGBA(image)
     }
 
     // MARK: encoding
@@ -66,11 +43,11 @@ struct LibWebPEncoder: ImageEncoder {
         }
     }
 
-    private func encode(_ pixels: inout [UInt8], width: Int, height: Int,
+    private func encode(_ pixels: inout [UInt8], width: Int, height: Int, quality: Float,
                         progress: @escaping @Sendable (Double) -> Void, cancel: CancelFlag) throws -> Data {
         var config = WebPConfig()
         guard WebPConfigInit(&config) != 0 else { throw ConversionError.failed("libwebp could not start.") }
-        config.quality = Self.quality
+        config.quality = quality
         guard WebPValidateConfig(&config) != 0 else { throw ConversionError.failed("libwebp rejected its settings.") }
 
         var picture = WebPPicture()

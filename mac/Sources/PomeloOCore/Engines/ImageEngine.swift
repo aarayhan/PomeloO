@@ -35,7 +35,7 @@ public struct ImageEngine: ConversionEngine {
             let (image, metadata) = try Self.read(job.source)
             progress(0.3)
             try cancel.check()
-            try encoder.write(image, as: format, metadata: metadata, to: job.destination,
+            try encoder.write(image, as: format, metadata: metadata, quality: ImageEncoders.defaultQuality, to: job.destination,
                               progress: { progress(0.3 + 0.7 * $0) }, cancel: cancel)
             progress(1)
         }
