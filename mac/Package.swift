@@ -10,9 +10,18 @@ let package = Package(
         .library(name: "PomeloOCore", targets: ["PomeloOCore"]),
     ],
     targets: [
+        // libwebp, copied from the official repository by scripts/vendor-libwebp.sh (BSD-3-Clause).
+        // Writes WebP in-process, which neither ImageIO nor a Homebrew ffmpeg can.
+        .target(
+            name: "CWebP",
+            exclude: ["COPYING", "PATENTS", "AUTHORS", "VERSION"],
+            publicHeadersPath: "src/webp",
+            cSettings: [.headerSearchPath(".")]
+        ),
         // Catalog, naming, engines, job runner. No UI, so `swift test` covers it.
         .target(
             name: "PomeloOCore",
+            dependencies: ["CWebP"],
             resources: [
                 // Resources/catalog.json is a symlink to docs/catalog.json (the shared source of truth).
                 // Embedded in the binary: SwiftPM resource bundles do not survive inside a hand-made .app.

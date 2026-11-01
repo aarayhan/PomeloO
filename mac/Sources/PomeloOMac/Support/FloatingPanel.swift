@@ -15,7 +15,10 @@ final class FloatingPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
     }
 
-    override var canBecomeKey: Bool { false }
+    /// Only the wheel opened with the keyboard takes key presses; everything else here never takes focus.
+    var acceptsKeys = false
+
+    override var canBecomeKey: Bool { acceptsKeys }
     override var canBecomeMain: Bool { false }
 }
 

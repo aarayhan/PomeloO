@@ -88,3 +88,43 @@ Catatan hasil (isi dari uji di Mac sendiri, jangan menebak):
 | 26.x | membuka PomeloO.app dari Applications | **[BELUM DIUJI]** |
 | 26.x | Pengaturan Sistem > Privasi & Keamanan > Buka Saja | **[BELUM DIUJI]** |
 | 26.x | `xattr -dr com.apple.quarantine` lalu buka | **[BELUM DIUJI]** |
+
+## Izin sistem
+
+### Gestur seret-lalu-tap (hasil spike)
+
+Gestur "seret file, tap Shift" **tidak memakai pemantau event**. App hanya membaca keadaan saat ini, 10 kali
+per detik, dan 30 kali per detik selama tombol mouse kiri ditekan:
+
+- `NSEvent.pressedMouseButtons`: tombol mouse yang sedang ditekan.
+- `NSEvent.modifierFlags`: tombol Shift, Control, Option, Command yang sedang ditahan.
+- `NSPasteboard(name: .drag).changeCount` dan daftar tipenya: berubah sekitar 140 ms setelah tombol ditekan
+  ketika sebuah file mulai diseret, dan memuat `public.file-url`.
+
+Spike (app ad-hoc kecil di luar kode produksi, macOS 26.5.1, arm64, 2026-11-01) memperlihatkan:
+
+- Tombol mouse terbaca dari app lain, termasuk klik biasa di jendela app lain.
+- `changeCount` berubah hanya saat file diseret dari Finder, tidak pada klik biasa.
+- Tap Shift selama 100 ms atau lebih terbaca pada 30 Hz.
+- **Pemilik melaporkan tidak ada dialog izin**, dan log sistem tidak memuat satu pun permintaan izin untuk app itu.
+
+Dari situ: gestur ini tidak butuh izin Accessibility atau Input Monitoring di mesin itu, jadi tidak butuh sertifikat
+penandatangan yang stabil. Yang belum diuji:
+
+- **[BELUM DIUJI]** tap Control dan Option (spike hanya mencoba Shift; kodenya sama).
+- **[BELUM DIUJI]** macOS 13 sampai 15.
+- **[BELUM DIUJI]** seret dari app selain Finder.
+
+### Pintasan ⌃⇧Space
+
+Dipasang dengan `RegisterEventHotKey` (Carbon), yang tidak memerlukan izin: sistem hanya memanggil app untuk
+kombinasi tombol itu. Roda yang dibuka darinya memakai file yang sedang disalin (⌘C di Finder). **[BELUM DIUJI]**
+apakah macOS 15.4 ke atas meminta persetujuan saat app membaca papan klip secara terprogram.
+
+### Batas yang tetap berlaku
+
+Rilis DMG ditandatangani ad-hoc. Setiap versi baru dianggap macOS sebagai app baru, jadi **izin apa pun yang
+diberikan pengguna harus diberikan lagi setelah tiap pembaruan**, kecuali ada Developer ID (akun Apple Developer
+berbayar, belum ada). Itu belum berlaku pada gestur dan pintasan di atas karena keduanya tidak butuh izin,
+tapi akan berlaku pada fitur yang butuh: membaca pilihan Finder lewat Apple Events (izin Automation) dan menyalin
+teks dari layar (izin Screen Recording).

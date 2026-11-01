@@ -87,6 +87,18 @@ final class WheelViewTests: XCTestCase {
         XCTAssertGreaterThan(ring.a, 200, "a single format is a full ring")
     }
 
+    func testAKeyboardWheelShowsItsHotPetalAndHint() throws {
+        let view = WheelView()
+        var model = WheelModel(urls: [URL(fileURLWithPath: "/tmp/photo.png")], service: service)
+        model.setKeyboard(true)
+        view.model = model
+        let rep = try render(view, named: "wheel-keyboard")
+        let n = model.items.count
+        let hot = try pixel(rep, WheelGeometry.point(radius: WheelGeometry.outer - 12, angle: WheelGeometry.angle(0, of: n)))
+        XCTAssertGreaterThan(hot.r, 220, "the first petal is hot from the start: \(hot)")
+        XCTAssertTrue(model.hint.hasPrefix("Press Enter"))
+    }
+
     func testTheDropPadIconDraws() throws {
         let image = NSImage(size: NSSize(width: 40, height: 40), flipped: true) { rect in
             CitrusIcon.draw(in: NSGraphicsContext.current!.cgContext, origin: .zero, side: 40)

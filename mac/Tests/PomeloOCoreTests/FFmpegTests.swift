@@ -203,6 +203,27 @@ final class FFmpegTests: TempDirectoryTestCase {
 
     // MARK: a real ffmpeg, when there is one
 
+    /// Every video and audio target the installed ffmpeg offers for an MP4, each checked by reading the result
+    /// back with ffmpeg. This is what proves the argument tables against a real build.
+    func testRealFFmpegConvertsAnMP4ToEveryOfferedTarget() async throws {
+        guard let ffmpeg = FFmpegLocator.find() else { throw XCTSkip("[BELUM DIUJI] no ffmpeg on this Mac") }
+        let runner = FFmpegRunner(executable: ffmpeg)
+        let source = file("clip.mp4")
+        try await runner.run(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=25:duration=2",
+                              "-f", "lavfi", "-i", "sine=duration=2", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                              "-c:a", "aac", source.path])
+        let real = ConversionService(engines: [FFmpegEngine(executable: ffmpeg)])
+        let targets = real.availableTargets(forExtension: "mp4")
+        XCTAssertTrue(targets.contains("mp3"), "offered: \(targets)")
+        for target in targets {
+            let result = try await real.convert(source, to: target)
+            XCTAssertGreaterThan(try result.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0, 0, target)
+            // reads back: every stream decodes
+            try await runner.run(["-hide_banner", "-loglevel", "error", "-i", result.path, "-f", "null", "-"])
+        }
+        try assertNoTemporaryFiles()
+    }
+
     func testRealFFmpegConvertsAToneToMP3() async throws {
         guard let ffmpeg = FFmpegLocator.find() else { throw XCTSkip("[BELUM DIUJI] no ffmpeg on this Mac") }
         let source = file("tone.wav")

@@ -6,7 +6,7 @@ import PomeloOCore
 @MainActor
 final class ConversionCoordinator {
     let service: ConversionService
-    private let toast = Toast()
+    let toast = Toast()
     private var fractions: [JobID: Double] = [:]
     private var watching: Task<Void, Never>?
 

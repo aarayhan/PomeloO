@@ -177,8 +177,8 @@ final class ImageConversionTests: TempDirectoryTestCase {
         XCTAssertEqual(service.commonTargets(forExtensions: ["png", "mp3"]), [])
     }
 
-    func testSVGAndUnknownSourcesHaveNoTargetsHere() {
-        XCTAssertEqual(service.availableTargets(forExtension: "svg"), [])
+    func testUnknownSourcesHaveNoTargets() {
         XCTAssertEqual(service.availableTargets(forExtension: "xyz"), [])
+        XCTAssertEqual(service.availableTargets(forExtension: ""), [])
     }
 }

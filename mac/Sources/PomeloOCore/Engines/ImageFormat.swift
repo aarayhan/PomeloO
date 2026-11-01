@@ -1,9 +1,12 @@
+import AppKit
 import ImageIO
 
-/// The raster formats of the catalog and what ImageIO can do with each on this Mac. Availability is read
+/// The raster and vector formats of the catalog and what this Mac can do with each. Availability is read
 /// from the system at run time: HEIC and AVIF encoders depend on the macOS version and hardware.
 public enum ImageFormat: String, CaseIterable, Sendable {
     case jpg, png, webp, heic, tiff, avif, bmp, pdf
+    /// Input only: drawn by the system's SVG renderer.
+    case svg
 
     public var fileExtension: String { rawValue }
 
@@ -17,6 +20,7 @@ public enum ImageFormat: String, CaseIterable, Sendable {
         case .avif: "public.avif"
         case .bmp: "com.microsoft.bmp"
         case .pdf: "com.adobe.pdf"
+        case .svg: "public.svg-image"
         }
     }
 
@@ -24,30 +28,33 @@ public enum ImageFormat: String, CaseIterable, Sendable {
     public var isLossy: Bool {
         switch self {
         case .jpg, .webp, .heic, .avif: true
-        case .png, .tiff, .bmp, .pdf: false
+        case .png, .tiff, .bmp, .pdf, .svg: false
         }
     }
 
     /// False means transparency is flattened onto white when writing (JPEG, BMP and PDF, as on Windows).
     public var supportsAlpha: Bool {
         switch self {
-        case .png, .webp, .heic, .tiff, .avif: true
+        case .png, .webp, .heic, .tiff, .avif, .svg: true
         case .jpg, .bmp, .pdf: false
         }
     }
 
-    /// ImageIO can decode it here. PDF is output-only.
+    /// Something here can decode it. PDF is output-only.
     public var isReadable: Bool {
-        self != .pdf && ImageIOTypes.readable.contains(utTypeIdentifier)
+        switch self {
+        case .pdf: false
+        case .svg: SVGRasterizer.isAvailable
+        default: ImageIOTypes.readable.contains(utTypeIdentifier)
+        }
     }
 
-    /// ImageIO can encode it here (PDF is drawn with Core Graphics and is always available).
+    /// An encoder here can write it: ImageIO for most, Core Graphics for PDF, libwebp for WebP.
     public var isWritable: Bool {
-        self == .pdf || ImageIOTypes.writable.contains(utTypeIdentifier)
+        ImageEncoders.standard.contains { $0.formats.contains(self) }
     }
 }
 
 private enum ImageIOTypes {
     static let readable = Set((CGImageSourceCopyTypeIdentifiers() as? [String]) ?? [])
-    static let writable = Set((CGImageDestinationCopyTypeIdentifiers() as? [String]) ?? [])
 }

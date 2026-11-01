@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import PomeloOCore
 
 /// Owns the menu bar item and the pieces behind it: the drop pad, the wheel and the conversions.
@@ -11,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pad: DropPad?
     private var wheel: WheelController?
     private var coordinator: ConversionCoordinator?
+    private var gestures: DragGestureMonitor?
+    private var hotKey: GlobalHotKey?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [Self.showPadKey: true])
@@ -43,6 +46,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         pad.setVisible(UserDefaults.standard.bool(forKey: Self.showPadKey))
         padItem?.state = pad.isVisible ? .on : .off
+
+        startGestures(wheel: wheel)
+        startShortcut(wheel: wheel, coordinator: coordinator)
+    }
+
+    /// Drag a file anywhere, tap Shift, and the wheel opens under the pointer. Only the Convert wheel exists
+    /// so far; Control and Option are mapped to Tools and Actions (the Windows keys) for when those arrive.
+    private func startGestures(wheel: WheelController) {
+        let monitor = DragGestureMonitor()
+        monitor.onEvent = { [weak wheel] event, pointer in
+            guard let wheel else { return }
+            switch event {
+            case let .keyTapped(key):
+                if GestureKeys.defaults[key] == .convert, !wheel.isVisible { wheel.showForGesture(at: pointer) }
+            case .dragEnded:
+                wheel.dragSessionEnded()
+            case .dragBegan:
+                break
+            }
+        }
+        monitor.start()
+        gestures = monitor
+    }
+
+    /// Control-Shift-Space opens the wheel, driven by the arrow keys, for the files that were copied.
+    private func startShortcut(wheel: WheelController, coordinator: ConversionCoordinator) {
+        let controlShift = controlKey | shiftKey
+        hotKey = GlobalHotKey(keyCode: kVK_Space, modifiers: controlShift) { [weak wheel, weak coordinator] in
+            let files = Self.copiedFiles()
+            guard !files.isEmpty else {
+                coordinator?.toast.show("Copy files in Finder (⌘C), then press ⌃⇧Space.")
+                return
+            }
+            wheel?.showForKeyboard(files: files, at: NSEvent.mouseLocation)
+        }
+        if hotKey == nil {
+            coordinator.toast.show("⌃⇧Space is used by another app, so the keyboard shortcut is off.")
+        }
+    }
+
+    /// Files on the clipboard (what Finder copies with ⌘C).
+    private static func copiedFiles() -> [URL] {
+        let objects = NSPasteboard.general.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
+        return (objects as? [URL]) ?? []
     }
 
     private func makeMenu() -> NSMenu {

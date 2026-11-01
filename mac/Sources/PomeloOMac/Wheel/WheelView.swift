@@ -19,6 +19,14 @@ final class WheelView: NSView {
     /// Top-left origin and y down, like the geometry in Core.
     override var isFlipped: Bool { true }
 
+    // MARK: keyboard (only when the wheel was opened with the shortcut)
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func keyDown(with event: NSEvent) {
+        controller?.key(event)
+    }
+
     // MARK: drag destination
 
     private func files(_ info: NSDraggingInfo) -> [URL] {

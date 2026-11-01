@@ -44,7 +44,6 @@ enum FFmpegEncoders {
         case "avi": ["mpeg4", "libmp3lame"]
         case "wmv": ["wmv2", "wmav2"]
         case "gif": ["gif"]
-        case "webp": ["libwebp"]
         default: []
         }
     }
