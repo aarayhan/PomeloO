@@ -22,5 +22,7 @@ let package = Package(
         // Menu bar app (LSUIElement) and its panels.
         .executableTarget(name: "PomeloOMac", dependencies: ["PomeloOCore"]),
         .testTarget(name: "PomeloOCoreTests", dependencies: ["PomeloOCore"]),
+        // Drawing checks for the AppKit views: rendered offscreen, no screen or permission needed.
+        .testTarget(name: "PomeloOMacTests", dependencies: ["PomeloOMac", "PomeloOCore"]),
     ]
 )

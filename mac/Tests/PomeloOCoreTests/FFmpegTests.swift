@@ -8,7 +8,9 @@ final class FFmpegTests: TempDirectoryTestCase {
     /// Writes an executable script into the test folder.
     private func fakeFFmpeg(_ body: String) throws -> URL {
         let url = file("fake-ffmpeg")
-        try ("#!/bin/sh\n" + body).write(to: url, atomically: true, encoding: .utf8)
+        // The engine asks which encoders exist before it converts; the fakes have nothing to say about that.
+        let encoders = "case \"$*\" in *\"-encoders\"*) exit 0;; esac\n"
+        try ("#!/bin/sh\n" + encoders + body).write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url
     }

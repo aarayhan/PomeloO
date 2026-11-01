@@ -85,6 +85,15 @@ xattr -cr "$APP"
 while IFS= read -r -d '' nested; do
     codesign --force --sign - "$nested"
 done < <(find "$APP/Contents" -depth \( -name '*.dylib' -o -name '*.framework' -o -name '*.xpc' \) -print0)
+# Helper programs such as Resources/Tools/ffmpeg: the app's own signature only seals them as data, and
+# arm64 macOS will not run a Mach-O file that carries no signature of its own.
+if [[ -d $APP/Contents/Resources/Tools ]]; then
+    while IFS= read -r -d '' helper; do
+        if file -b "$helper" | grep -q 'Mach-O'; then
+            codesign --force --sign - "$helper"
+        fi
+    done < <(find "$APP/Contents/Resources/Tools" -type f -perm -u+x -print0)
+fi
 codesign --force --sign - --identifier "$BUNDLE_ID" "$APP"
 
 # 5. verification

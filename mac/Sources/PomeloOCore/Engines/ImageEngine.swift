@@ -9,7 +9,7 @@ public struct ImageEngine: ConversionEngine {
     public let name = "ImageIO"
 
     /// Catalog image inputs. SVG is not here: ImageIO cannot draw it.
-    private static let sources: Set<String> = ["jpg", "png", "webp", "heic", "tiff", "avif", "bmp"]
+    static let sources: Set<String> = ["jpg", "png", "webp", "heic", "tiff", "avif", "bmp"]
     private static let quality = 0.9
     private static let pdfDPI = 300.0
 
@@ -36,7 +36,7 @@ public struct ImageEngine: ConversionEngine {
 
     // MARK: read
 
-    private static func read(_ url: URL) throws -> (CGImage, [CFString: Any]) {
+    static func read(_ url: URL) throws -> (CGImage, [CFString: Any]) {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil), CGImageSourceGetCount(source) > 0,
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
             throw ConversionError.cannotRead(url.lastPathComponent)
@@ -73,7 +73,7 @@ public struct ImageEngine: ConversionEngine {
 
     // MARK: write
 
-    private static func write(_ image: CGImage, metadata: [CFString: Any], as format: ImageFormat, to url: URL) throws {
+    static func write(_ image: CGImage, metadata: [CFString: Any], as format: ImageFormat, to url: URL) throws {
         let flat = format.supportsAlpha ? image : try flattened(image)
         if format == .pdf {
             try writePDF(flat, to: url)

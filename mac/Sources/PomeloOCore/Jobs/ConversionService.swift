@@ -8,9 +8,9 @@ public final class ConversionService: Sendable {
     private let engines: [any ConversionEngine]
     private let names = NameReserver()
 
-    /// Apple frameworks first, ffmpeg for what they cannot do.
+    /// Apple frameworks first, ffmpeg for what they cannot do (WebP output, and audio and video beyond AVFoundation).
     public static func defaultEngines() -> [any ConversionEngine] {
-        [ImageEngine(), AppleAudioEngine(), FFmpegEngine()]
+        [ImageEngine(), WebPEngine(), AppleAudioEngine(), FFmpegEngine()]
     }
 
     public init(catalog: Catalog = .bundled,

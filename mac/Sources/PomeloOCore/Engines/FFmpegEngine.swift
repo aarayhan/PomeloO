@@ -30,10 +30,15 @@ public struct FFmpegEngine: ConversionEngine {
     public var isAvailable: Bool { executable != nil }
 
     public func canConvert(from: String, to: String) -> Bool {
-        guard executable != nil, from != to else { return false }
-        if from == "gif" { return Self.video.contains(to) }  // a GIF only becomes video
-        let media = Self.audio.union(Self.video)
-        return media.contains(from) && (media.contains(to) || to == "gif")
+        guard let executable, from != to else { return false }
+        let pair: Bool
+        if from == "gif" {
+            pair = Self.video.contains(to)  // a GIF only becomes video
+        } else {
+            let media = Self.audio.union(Self.video)
+            pair = media.contains(from) && (media.contains(to) || to == "gif")
+        }
+        return pair && FFmpegEncoders.supports(to, at: executable)
     }
 
     public func convert(_ job: ConversionJob, progress: @escaping @Sendable (Double) -> Void) async throws {
