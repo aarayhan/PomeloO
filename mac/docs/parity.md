@@ -14,10 +14,17 @@ Setiap angka di sini diukur di macOS 26.5.1 (arm64) kecuali ditandai **[BELUM DI
 | `CGContext` dengan `kCGPDFContextEncryptionKeyLength` 128 | `/CFM /AESV2` (AES-128) | |
 | `CGContext` dengan 256 | konteks menolak (nil) | tidak ada AES-256 |
 
-Karena itu **tool "Add password" (`protectPDF`) belum dibuat di Mac**. Menjanjikan AES-256 dari framework Apple tidak
-mungkin, dan mengeluarkan AES-128 dengan nama yang sama adalah keputusan pemilik proyek (pilihan: AES-128 dengan
-catatan jelas, pustaka enkripsi sendiri, atau tidak ada tool itu di Mac). "Remove password" (`unlockPDF`) sudah ada
-dan membaca semua tingkat.
+Keputusan pemilik proyek: **tool "Add password" (`protectPDF`) tetap ada di Mac dengan AES-128**, dan label di dialog
+tertulis "AES-128". Jangan menyebut AES-256 untuk Mac di `docs/features.md` atau di mana pun. Windows memakai AES-256
+lewat PyMuPDF; itu selisih yang disengaja. Tidak ada kriptografi buatan sendiri. Kalau suatu saat AES-256 wajib,
+pakai pustaka yang sudah teruji (misalnya qpdf) sebagai tugas terpisah.
+
+Satu catatan kekuatan: pada PDF versi R4 (AES-128) kunci diturunkan dari kata sandi dengan MD5, jadi kekuatannya
+bergantung pada kata sandi yang panjang. Dialog mengatakan hal yang sama. Kata sandi kosong ditolak, dan PDF yang
+sudah terkunci tidak bisa diberi kata sandi lagi sebelum dibuka.
+
+"Remove password" (`unlockPDF`) memakai `PDFDocument.unlock` lalu menyimpan tanpa enkripsi; kata sandi yang sekarang
+diperlukan. Ia membaca semua tingkat.
 
 Temuan lain: menulis ulang dokumen PDFKit yang sudah dibuka dengan `write(to:)` **mempertahankan** enkripsinya.
 `unlockPDF` karena itu menggambar ulang tiap halaman ke PDF baru, dan tesnya memastikan hasilnya tidak terenkripsi
@@ -53,8 +60,12 @@ ukuran-target (pencarian biner kualitas 5 sampai 92 untuk JPEG, WebP, HEIC, AVIF
 terlalu besar). Selisihnya:
 
 - **Kompres PNG tidak mengurangi warna ke 256** (Windows memakai kuantisasi FASTOCTREE). Karena ImageIO menulis PNG
-  penuh warna, target ukuran untuk PNG yang tidak bisa dipadatkan lagi tercapai dengan memperkecil piksel lebih cepat.
-  Kuantisasi ke PNG berpalet (dengan transparansi) belum ada; itu keputusan yang tertunda.
+  penuh warna, target ukuran untuk PNG yang tidak bisa dipadatkan lagi tercapai dengan memperkecil piksel. Pengguna
+  **diberi tahu**: hasilnya memuat catatan "diperkecil menjadi W×H px" yang tampil di notifikasi hasil. Ini selisih
+  yang diketahui dan harus ditutup **sebelum rilis pertama** (tugas terpisah): kuantisasi ke PNG berpalet 256 warna
+  dengan transparansi. Rencana: (1) uji dulu apakah palet terindeks CoreGraphics bisa membawa alfa per entri
+  **[BELUM DIUJI]**; (2) bila tidak, pustaka C kecil di dalam repo (pola `CWebP`) yang menulis PLTE/tRNS/IDAT, dengan
+  kuantiser octree sendiri di Swift; (3) periksa lisensi libimagequant sebelum mempertimbangkannya.
 - **Kompres dan metadata menjatuhkan data kamera** (seperti Windows). Crop mempertahankannya, redaksi menjatuhkannya.
 - **Grain** memakai pola acak tetap sendiri, bukan `numpy.random.default_rng(0)`, jadi bintiknya berbeda tapi rata-ratanya sama.
   **Clarity** dan **Noise reduction** memakai hampiran: blur Gaussian dari tiga kali kotak, dan median 5×5 yang membiarkan

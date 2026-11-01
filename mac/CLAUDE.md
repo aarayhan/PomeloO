@@ -56,10 +56,17 @@ Kerjakan satu fase sekali jalan, hentikan setelah kriterianya terpenuhi, dan jan
 | 1 | Core: protokol mesin, pemuat katalog, penamaan hasil, job runner dengan progres dan batal; konversi gambar (ImageIO) dan audio/video (ffmpeg) | `swift test` hijau; satu konversi gambar dan satu audio berjalan | selesai |
 | 2 | Pintu masuk UI: pad melayang untuk drop file, lalu roda format di kursor | drop file memilih format dan konversi jalan | selesai |
 | 3 | Gestur global (seret file di Finder lalu tap Shift, Ctrl, atau Alt) dan pintasan keyboard | roda muncul dari Finder | selesai |
-| 4 | Tool per jenis file (kompres, metadata, OCR, PDF, dan seterusnya), bertahap menurut pemakaian | tiap tool punya tes di Core | belum |
+| 4 | Tool per jenis file (kompres, metadata, OCR, PDF, dan seterusnya), bertahap menurut pemakaian | tiap tool punya tes di Core | berjalan: PDF dan gambar selesai di Core, UI Tools (roda Tools dan dialog) ada; audio/video (4c) dan Actions (4d, usulan) belum |
 | 5 | Recipes, riwayat dengan undo, pembaruan | paritas dengan Windows | belum |
 
-Fase 3 selesai dengan Shift; tap Control dan Option sudah dikenali tetapi belum membuka roda Tools dan Actions (Fase 4). **[BELUM DIUJI]** tap Control dan Option, dan macOS 13 sampai 15.
+Gestur: tap Shift membuka roda Convert, tap Control membuka roda Tools (Fase 4); tap Option (Actions) dikenali tetapi belum membuka apa pun. **[BELUM DIUJI]** tap Control dan Option di Mac, dialog Tools dengan tangan, dan macOS 13 sampai 15.
+
+## Keputusan yang sudah diambil (Fase 4)
+
+- `protectPDF` memakai AES-128 dengan label "AES-128"; jangan menyebut AES-256 untuk Mac, jangan menulis kripto sendiri (rincian di `docs/parity.md`).
+- Kompres PNG sementara memperkecil piksel dan memberi tahu pengguna. **Kuantisasi 256 warna (dengan alfa) harus selesai sebelum rilis pertama.**
+- Urutan: UI Tools, lalu skrip build ffmpeg rilis (batas waktu; bila gagal atau melewati batas, laporkan ke pemilik, jangan putuskan sendiri antara menunda video dan build GPL), lalu kelompok audio/video (4c), lalu Actions.
+- `mac/THIRD_PARTY_NOTICES.md` memuat libwebp dan disalin ke `Contents/Resources/Licenses/` oleh `make-app.sh`; tambahkan ffmpeg saat skripnya selesai.
 
 ## Jebakan yang sudah diketahui
 

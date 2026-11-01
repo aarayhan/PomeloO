@@ -48,6 +48,17 @@ if [[ -n $RESOURCES ]]; then
     ditto "$RESOURCES" "$APP/Contents/Resources"
 fi
 
+# 2b. licences that must travel with the binary: PomeloO's own, the notices, and libwebp's (BSD-3 asks for its text
+# to come with every binary distribution)
+LICENSES=$APP/Contents/Resources/Licenses
+mkdir -p "$LICENSES"
+copy_license() { [[ -f $1 ]] || fail "missing licence file: $1"; cp "$1" "$LICENSES/$2"; }
+copy_license "$MAC_DIR/THIRD_PARTY_NOTICES.md" THIRD_PARTY_NOTICES.md
+copy_license "$MAC_DIR/../LICENSE" LICENSE-PomeloO-AGPL-3.0.txt
+copy_license "$MAC_DIR/Sources/CWebP/COPYING" libwebp-COPYING.txt
+copy_license "$MAC_DIR/Sources/CWebP/PATENTS" libwebp-PATENTS.txt
+copy_license "$MAC_DIR/Sources/CWebP/AUTHORS" libwebp-AUTHORS.txt
+
 # 3. Info.plist (after the resources, so the icon key can follow what is really there)
 ICON_KEY=""
 if [[ -f $APP/Contents/Resources/AppIcon.icns ]]; then
