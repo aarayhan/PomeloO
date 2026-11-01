@@ -153,6 +153,20 @@ enum PDFTools {
         }
     }
 
+    /// A copy that needs the password to open. The strength is what PDFKit writes on macOS: AES-128 (PDF 1.6, security
+    /// handler revision 4), measured in the tests. The Windows app writes AES-256; Apple's frameworks do not offer it.
+    /// Revision 4 derives its key with MD5, so how strong this is depends on how long the password is.
+    /// Unlike the tools that draw pages again, this keeps bookmarks, links and forms. The same password is both
+    /// the one to open the file and the owner's.
+    static func protect(_ source: URL, password: String, to destination: URL, cancel: CancelFlag) throws {
+        guard !password.isEmpty else { throw ConversionError.failed("Type a password.") }
+        let document = try open(source)  // a file that already has one is refused: unlock it first
+        try cancel.check()
+        guard document.write(to: destination, withOptions: [.userPasswordOption: password, .ownerPasswordOption: password]) else {
+            throw ConversionError.cannotWrite(destination.lastPathComponent)
+        }
+    }
+
     /// A copy without the password. The password is checked first, so a wrong one says so.
     static func unlock(_ source: URL, password: String, to destination: URL, cancel: CancelFlag) throws {
         try redraw(source, password: password, to: destination, cancel: cancel) { _, _, _, _ in }

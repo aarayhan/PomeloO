@@ -83,7 +83,10 @@ enum ImageTools {
     /// search over 5 to 92), and for every format a smaller picture (85% at a time) as the last resort.
     /// Camera data is not carried over, like the Windows app. [Parity gap] PNG is not reduced to 256 colours
     /// first, so a PNG that is too big gets smaller by losing pixels sooner than on Windows.
-    static func compress(_ source: URL, to destination: URL, options: CompressOptions, cancel: CancelFlag) throws {
+    /// Returns a sentence for the user when the result is not what was asked for: the pixels had to shrink, or the
+    /// target was out of reach.
+    @discardableResult
+    static func compress(_ source: URL, to destination: URL, options: CompressOptions, cancel: CancelFlag) throws -> String? {
         let format = try outputFormat(destination)
         let sourceSize = try fileSize(source)
         let target = options.targetKB > 0 ? options.targetKB * 1024 : sourceSize * options.percent / 100
@@ -105,17 +108,24 @@ enum ImageTools {
             }
             if let best {
                 try ImageEncoders.write(image, as: format, quality: Double(best) / 100, to: destination, cancel: cancel)
-                return
+                return nil
             }
             quality = 0.05
         } else {
             try ImageEncoders.write(image, as: format, to: destination, cancel: cancel)
         }
+        let original = (image.width, image.height)
         while try fileSize(destination) > target, min(image.width, image.height) > 32 {
             try cancel.check()
             image = try ImagePixels.resized(image, width: Int(Double(image.width) * 0.85), height: Int(Double(image.height) * 0.85))
             try ImageEncoders.write(image, as: format, quality: quality, to: destination, cancel: cancel)
         }
+        let finalSize = try fileSize(destination)
+        if (image.width, image.height) != original {
+            let reached = finalSize <= target ? "" : " and the size is still above the target"
+            return "Made smaller to \(image.width) × \(image.height) px to get near the target size\(reached)."
+        }
+        return nil
     }
 
     // MARK: metadata

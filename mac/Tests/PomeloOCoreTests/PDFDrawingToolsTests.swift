@@ -173,3 +173,85 @@ final class PDFDrawingToolsTests: TempDirectoryTestCase {
         }
     }
 }
+
+/// "Add password": AES-128 is what the Mac's frameworks write, and these tests pin that down.
+final class PDFProtectTests: TempDirectoryTestCase {
+    private let service = ToolService(runner: JobRunner(maxConcurrent: 2))
+
+    private func makePDF(_ name: String = "doc.pdf", pages: Int = 2) throws -> URL {
+        let url = file(name)
+        try TestPDF.make(at: url, pages: pages)
+        return url
+    }
+
+    func testProtectedFileNeedsThePasswordAndKeepsItsPages() async throws {
+        let result = try await service.run(.protect(password: "correct horse battery staple"), on: [try makePDF()])[0]
+        XCTAssertEqual(result.lastPathComponent, "doc Protected.pdf")
+        let document = try TestPDF.document(result)
+        XCTAssertTrue(document.isLocked)
+        XCTAssertFalse(document.unlock(withPassword: "wrong"))
+        XCTAssertTrue(document.unlock(withPassword: "correct horse battery staple"))
+        XCTAssertEqual(document.pageCount, 2)
+        XCTAssertEqual(try TestPDF.texts(try makePDF("again.pdf")).count, 2)
+        let page = try XCTUnwrap(document.page(at: 0)?.string).trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(page, "Page 1")
+        try assertNoTemporaryFiles()
+    }
+
+    func testTheEncryptionIsAES128AsMeasured() async throws {
+        let result = try await service.run(.protect(password: "secret"), on: [try makePDF()])[0]
+        let text = String(decoding: try Data(contentsOf: result), as: UTF8.self)
+        XCTAssertTrue(text.contains("/Filter /Standard"), "the standard security handler")
+        XCTAssertTrue(text.contains("/V 4"), "encryption version 4")
+        XCTAssertTrue(text.contains("/R 4"), "revision 4")
+        XCTAssertTrue(text.contains("/CFM /AESV2"), "AES-128 crypt filter")
+        XCTAssertTrue(text.contains("/Length 128"), "a 128-bit key")
+        XCTAssertFalse(text.contains("AESV3"), "no AES-256 here; the UI must not claim it")
+    }
+
+    func testProtectThenUnlockGivesAPlainCopy() async throws {
+        let protected = try await service.run(.protect(password: "secret"), on: [try makePDF()])[0]
+        let plain = try await service.run(.unlock(password: "secret"), on: [protected])[0]
+        XCTAssertEqual(plain.lastPathComponent, "doc Protected Unlocked.pdf")
+        let document = try TestPDF.document(plain)
+        XCTAssertFalse(document.isEncrypted)
+        XCTAssertEqual(document.pageCount, 2)
+    }
+
+    func testAnEmptyPasswordIsRefusedAndNothingIsWritten() async throws {
+        do {
+            _ = try await service.run(.protect(password: ""), on: [try makePDF()])
+            XCTFail("expected an error")
+        } catch let error as ConversionError {
+            XCTAssertEqual(error, .failed("Type a password."))
+        }
+        XCTAssertEqual(try names(), ["doc.pdf"])
+    }
+
+    func testAFileThatAlreadyHasAPasswordMustBeUnlockedFirst() async throws {
+        let protected = try await service.run(.protect(password: "one"), on: [try makePDF()])[0]
+        do {
+            _ = try await service.run(.protect(password: "two"), on: [protected])
+            XCTFail("expected an error")
+        } catch let error as ConversionError {
+            XCTAssertEqual(error, .failed("doc Protected.pdf needs its password."))
+        }
+    }
+
+    func testBookmarksSurviveProtecting() async throws {
+        let source = try makePDF()
+        let document = try TestPDF.document(source)
+        let root = PDFOutline()
+        let chapter = PDFOutline()
+        chapter.label = "Chapter"
+        chapter.destination = PDFDestination(page: try XCTUnwrap(document.page(at: 1)), at: .zero)
+        root.insertChild(chapter, at: 0)
+        document.outlineRoot = root
+        let withOutline = file("outlined.pdf")
+        XCTAssertTrue(document.write(to: withOutline))
+        let result = try await service.run(.protect(password: "secret"), on: [withOutline])[0]
+        let reopened = try TestPDF.document(result)
+        XCTAssertTrue(reopened.unlock(withPassword: "secret"))
+        XCTAssertEqual(reopened.outlineRoot?.child(at: 0)?.label, "Chapter", "unlike the tools that draw pages again")
+    }
+}

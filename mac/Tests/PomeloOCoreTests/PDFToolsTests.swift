@@ -168,9 +168,9 @@ final class PDFToolsTests: TempDirectoryTestCase {
 
     func testToolsForOnePDFAndForSeveral() {
         let one = service.availableTools(for: [file("a.pdf")])
-        XCTAssertEqual(Set(one), ["splitPDF", "organizePDF", "unlockPDF", "watermarkPDF", "numberPDF"])
+        XCTAssertEqual(Set(one), ["splitPDF", "organizePDF", "protectPDF", "unlockPDF", "watermarkPDF", "numberPDF"])
         let several = service.availableTools(for: [file("a.pdf"), file("b.pdf")])
-        XCTAssertEqual(Set(several), ["mergePDF", "splitPDF", "unlockPDF", "watermarkPDF", "numberPDF"])
+        XCTAssertEqual(Set(several), ["mergePDF", "splitPDF", "protectPDF", "unlockPDF", "watermarkPDF", "numberPDF"])
         XCTAssertFalse(several.contains("organizePDF"), "reordering pages of one document is a single-file tool")
         XCTAssertEqual(service.availableTools(for: [file("a.pdf"), file("b.png")]), [])
         XCTAssertEqual(service.availableTools(for: []), [])

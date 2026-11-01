@@ -79,6 +79,28 @@ final class ImageToolsTests: TempDirectoryTestCase {
         XCTAssertLessThan(try TestImage.read(result).width, 320)
     }
 
+    // MARK: what the user is told
+
+    func testAPNGThatHadToShrinkSaysSoOnce() async throws {
+        let png = file("shot.png")
+        try TestImage.writePNG(TestImage.noisy(), to: png)
+        let result = try await service.run(.compress(CompressOptions(percent: 20)), on: [png])[0]
+        let image = try TestImage.read(result)
+        let note = try XCTUnwrap(service.takeNote(for: result), "no note about the smaller picture")
+        XCTAssertTrue(note.contains("\(image.width) × \(image.height) px"), note)
+        XCTAssertNil(service.takeNote(for: result), "a note is given once")
+    }
+
+    func testNoNoteWhenOnlyTheQualityWentDown() async throws {
+        let result = try await service.run(.compress(CompressOptions(percent: 50)), on: [try makeNoisyJPEG()])[0]
+        XCTAssertNil(service.takeNote(for: result))
+    }
+
+    func testAskingToResizeIsNotAnAccident() async throws {
+        let result = try await service.run(.compress(CompressOptions(percent: 95, resizePercent: 50)), on: [try makeNoisyJPEG()])[0]
+        XCTAssertNil(service.takeNote(for: result), "the user chose that")
+    }
+
     // MARK: metadata
 
     private func makeCameraJPEG(_ name: String = "camera.jpg") throws -> URL {

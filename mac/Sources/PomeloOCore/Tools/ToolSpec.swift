@@ -27,6 +27,7 @@ public enum ToolSpecs {
         ToolSpec(id: "splitPDF", label: "Pages", outputExtension: "folder", combinesSelection: false),
         ToolSpec(id: "organizePDF", label: "Organized", outputExtension: "pdf", combinesSelection: false),
         ToolSpec(id: "mergePDF", label: "Merged", outputExtension: "pdf", combinesSelection: true),
+        ToolSpec(id: "protectPDF", label: "Protected", outputExtension: "pdf", combinesSelection: false),
         ToolSpec(id: "unlockPDF", label: "Unlocked", outputExtension: "pdf", combinesSelection: false),
         ToolSpec(id: "watermarkPDF", label: "Watermarked", outputExtension: "pdf", combinesSelection: false),
         ToolSpec(id: "numberPDF", label: "Numbered", outputExtension: "pdf", combinesSelection: false),

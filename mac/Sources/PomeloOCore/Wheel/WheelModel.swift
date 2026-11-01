@@ -2,13 +2,19 @@ import CoreGraphics
 import Foundation
 
 public struct WheelItem: Equatable, Sendable, Identifiable {
-    /// The target extension: `jpg`, `gz`...
+    /// The target extension (`jpg`, `gz`...) in the Convert wheel, the tool id (`compressPDF`...) in the Tools wheel.
     public let id: String
     public let title: String
 
     public init(target: String) {
         id = target
         title = target == "gz" ? "GZIP" : target.uppercased()
+    }
+
+    /// A tool petal: the short title the catalog gives it (`COMPRESS`, `ADD BG`...).
+    public init(tool id: String, catalog: Catalog) {
+        self.id = id
+        title = catalog.tools[id]?.short ?? id.uppercased()
     }
 }
 
@@ -18,19 +24,50 @@ public struct WheelModel: Sendable {
     public private(set) var urls: [URL] = []
     public private(set) var items: [WheelItem] = []
     public private(set) var hover: Int?
+    public private(set) var mode = WheelMode.convert
     /// Opened with the shortcut rather than by a drag: the arrow keys move the hot petal and Enter chooses.
     public private(set) var keyboard = false
 
+    private var conversions: ConversionService?
+    private var tools: ToolService?
+
+    /// The wheels there are so far. Actions come later; the third dot appears with them.
+    public static let availableModes: [WheelMode] = [.convert, .tools]
+
     public init() {}
 
-    public init(urls: [URL], service: ConversionService) {
-        setSelection(urls, service: service)
+    public init(urls: [URL], service: ConversionService, tools: ToolService? = nil, mode: WheelMode = .convert) {
+        self.mode = mode
+        setSelection(urls, service: service, tools: tools)
     }
 
-    /// Replaces the files and the formats offered for them.
-    public mutating func setSelection(_ urls: [URL], service: ConversionService) {
+    /// Replaces the files and the petals offered for them in the current mode.
+    public mutating func setSelection(_ urls: [URL], service: ConversionService, tools: ToolService? = nil) {
         self.urls = urls
-        items = service.wheelTargets(for: urls).map(WheelItem.init(target:))
+        conversions = service
+        if let tools { self.tools = tools }
+        rebuild()
+    }
+
+    /// Switches to another wheel for the same files. A mode that does not exist yet is ignored.
+    @discardableResult
+    public mutating func setMode(_ newMode: WheelMode) -> Bool {
+        guard Self.availableModes.contains(newMode), newMode != mode else { return false }
+        mode = newMode
+        rebuild()
+        return true
+    }
+
+    private mutating func rebuild() {
+        switch mode {
+        case .convert:
+            items = conversions?.wheelTargets(for: urls).map(WheelItem.init(target:)) ?? []
+        case .tools:
+            let catalog = tools?.catalog ?? .bundled
+            items = tools?.availableTools(for: urls).map { WheelItem(tool: $0, catalog: catalog) } ?? []
+        case .actions:
+            items = []
+        }
         hover = keyboard && !items.isEmpty ? 0 : nil
     }
 
@@ -69,7 +106,7 @@ public struct WheelModel: Sendable {
 
     // MARK: text
 
-    public var title: String { "Convert" }
+    public var title: String { mode.title }
 
     public var countText: String {
         urls.isEmpty ? "Drop here" : "\(urls.count) file\(urls.count == 1 ? "" : "s")"
@@ -77,9 +114,17 @@ public struct WheelModel: Sendable {
 
     /// Under the wheel: what letting go does, or what to do.
     public var hint: String {
-        if let chosen { return "\(keyboard ? "Press Enter" : "Let go") to make a \(chosen.title)" }
-        if !urls.isEmpty, items.isEmpty { return "No conversions for this selection" }
-        return "Drop on a format"
+        if let chosen { return "\(keyboard ? "Press Enter" : "Let go") to \(verb(for: chosen))" }
+        if !urls.isEmpty, items.isEmpty { return "No \(mode == .convert ? "conversions" : mode.title.lowercased()) for this selection" }
+        return mode == .convert ? "Drop on a format" : "Drop on a \(mode == .tools ? "tool" : "action")"
+    }
+
+    private func verb(for item: WheelItem) -> String {
+        switch mode {
+        case .convert: "make a \(item.title)"
+        case .tools: "use \(tools?.catalog.tools[item.id]?.name ?? item.title.capitalized)"
+        case .actions: item.title.lowercased()
+        }
     }
 }
 

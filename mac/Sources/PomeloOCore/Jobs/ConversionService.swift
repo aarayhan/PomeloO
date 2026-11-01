@@ -6,7 +6,7 @@ public final class ConversionService: Sendable {
     public let catalog: Catalog
     public let runner: JobRunner
     private let engines: [any ConversionEngine]
-    private let names = NameReserver()
+    private let names: NameReserver
 
     /// Pictures (ImageIO, Core Graphics, libwebp) and AVFoundation audio first; ffmpeg only for the audio and
     /// video they cannot do.
@@ -16,10 +16,12 @@ public final class ConversionService: Sendable {
 
     public init(catalog: Catalog = .bundled,
                 engines: [any ConversionEngine] = ConversionService.defaultEngines(),
-                runner: JobRunner = JobRunner()) {
+                runner: JobRunner = JobRunner(),
+                names: NameReserver = NameReserver()) {
         self.catalog = catalog
         self.engines = engines
         self.runner = runner
+        self.names = names
     }
 
     // MARK: what is possible here

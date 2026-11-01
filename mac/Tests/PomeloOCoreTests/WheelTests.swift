@@ -124,3 +124,81 @@ final class WheelModelTests: XCTestCase {
         XCTAssertNil(model.chosen)
     }
 }
+
+
+final class WheelModeTests: XCTestCase {
+    private let conversions = ConversionService(engines: [ImageEngine()])
+    private let tools = ToolService()
+
+    private func urls(_ names: String...) -> [URL] { names.map { URL(fileURLWithPath: "/tmp/\($0)") } }
+
+    func testTheToolsWheelHoldsTheToolsOfTheSelection() {
+        let model = WheelModel(urls: urls("photo.jpg"), service: conversions, tools: tools, mode: .tools)
+        XCTAssertEqual(model.items.map(\.id), tools.availableTools(for: urls("photo.jpg")))
+        XCTAssertEqual(model.title, "Tools")
+        XCTAssertTrue(model.items.map(\.title).contains("COMPRESS"), "the catalog's short title")
+        XCTAssertTrue(model.items.map(\.title).contains("CROP"))
+    }
+
+    func testPDFsGetTheirOwnTools() {
+        let model = WheelModel(urls: urls("a.pdf"), service: conversions, tools: tools, mode: .tools)
+        XCTAssertEqual(Set(model.items.map(\.id)), ["splitPDF", "organizePDF", "protectPDF", "unlockPDF", "watermarkPDF", "numberPDF"])
+        let several = WheelModel(urls: urls("a.pdf", "b.pdf"), service: conversions, tools: tools, mode: .tools)
+        XCTAssertTrue(several.items.map(\.id).contains("mergePDF"))
+    }
+
+    func testSwitchingKeepsTheFilesAndChangesThePetals() {
+        var model = WheelModel(urls: urls("photo.png"), service: conversions, tools: tools)
+        let formats = model.items
+        XCTAssertTrue(model.setMode(.tools))
+        XCTAssertEqual(model.urls, urls("photo.png"))
+        XCTAssertNotEqual(model.items, formats)
+        XCTAssertEqual(model.title, "Tools")
+        XCTAssertFalse(model.setMode(.tools), "already there")
+        XCTAssertTrue(model.setMode(.convert))
+        XCTAssertEqual(model.items, formats)
+    }
+
+    func testTheActionsWheelDoesNotExistYet() {
+        var model = WheelModel(urls: urls("photo.png"), service: conversions, tools: tools)
+        XCTAssertFalse(model.setMode(.actions))
+        XCTAssertEqual(model.mode, .convert)
+        XCTAssertEqual(WheelModel.availableModes, [.convert, .tools])
+    }
+
+    func testTheModeSurvivesANewSelection() {
+        var model = WheelModel(urls: [], service: conversions, tools: tools)
+        model.setMode(.tools)
+        model.setSelection(urls("photo.png"), service: conversions)
+        XCTAssertEqual(model.mode, .tools, "a drag that enters the wheel after the key tap keeps the wheel the key chose")
+        XCTAssertFalse(model.items.isEmpty)
+    }
+
+    func testHintsNameTheTool() {
+        var model = WheelModel(urls: urls("photo.png"), service: conversions, tools: tools, mode: .tools)
+        let middle = WheelGeometry.point(radius: 110, angle: WheelGeometry.angle(0, of: model.items.count))
+        model.pointerMoved(x: middle.x, y: middle.y)
+        XCTAssertEqual(model.hint, "Let go to use \(tools.catalog.tools[model.chosen!.id]!.name)")
+        model.pointerLeft()
+        XCTAssertEqual(model.hint, "Drop on a tool")
+    }
+
+    func testNoToolsForAMixedSelection() {
+        let model = WheelModel(urls: urls("a.png", "b.pdf"), service: conversions, tools: tools, mode: .tools)
+        XCTAssertEqual(model.items, [])
+        XCTAssertEqual(model.hint, "No tools for this selection")
+    }
+
+    func testWithoutAToolServiceTheToolsWheelIsEmpty() {
+        let model = WheelModel(urls: urls("photo.png"), service: conversions, mode: .tools)
+        XCTAssertEqual(model.items, [])
+    }
+
+    func testKeyboardStartsOnTheFirstToolToo() {
+        var model = WheelModel(urls: urls("photo.png"), service: conversions, tools: tools, mode: .tools)
+        model.setKeyboard(true)
+        XCTAssertEqual(model.hover, 0)
+        model.setMode(.convert)
+        XCTAssertEqual(model.hover, 0, "switching wheels with the keyboard on starts at the first petal")
+    }
+}

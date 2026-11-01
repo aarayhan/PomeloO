@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// What a PDF tool is asked to do, with its options.
 public enum PDFToolRequest: Sendable, Equatable {
@@ -8,6 +9,7 @@ public enum PDFToolRequest: Sendable, Equatable {
     case watermark(WatermarkOptions)
     case number(NumberingOptions)
     case unlock(password: String)
+    case protect(password: String)
 
     public var toolID: String {
         switch self {
@@ -17,6 +19,7 @@ public enum PDFToolRequest: Sendable, Equatable {
         case .watermark: "watermarkPDF"
         case .number: "numberPDF"
         case .unlock: "unlockPDF"
+        case .protect: "protectPDF"
         }
     }
 }
@@ -70,6 +73,7 @@ public final class ToolService: Sendable {
     public let catalog: Catalog
     public let runner: JobRunner
     private let names: NameReserver
+    private let notes = OSAllocatedUnfairLock(initialState: [URL: String]())
 
     /// The tools this service can run so far. The wheel offers only these, whatever the catalog lists.
     public static let implemented: Set<String> = Set(ToolSpecs.all.keys)
@@ -144,6 +148,11 @@ public final class ToolService: Sendable {
         }
     }
 
+    /// What the user should be told about a result, once (for example that a PNG had to shrink to fit its target).
+    public func takeNote(for result: URL) -> String? {
+        notes.withLock { $0.removeValue(forKey: result) }
+    }
+
     // MARK: running for text
 
     /// The text a tool finds in each picture, with a blank line between files. QR codes say so when there are
@@ -170,7 +179,8 @@ public final class ToolService: Sendable {
 
     // MARK: the machinery
 
-    private typealias Produce = @Sendable (CancelFlag, _ first: URL, _ all: [URL], _ output: URL) throws -> Void
+    /// Writes the result; a sentence returned is something the user should be told (see `takeNote`).
+    private typealias Produce = @Sendable (CancelFlag, _ first: URL, _ all: [URL], _ output: URL) throws -> String?
 
     private func runAll(toolID: String, label: String?, sources: [URL], progress: @escaping @Sendable (Double) -> Void,
                         produce: @escaping Produce) async throws -> [URL] {
@@ -203,12 +213,14 @@ public final class ToolService: Sendable {
         let final = await names.reserve(OutputNaming.proposed(for: first, ext: outputExtension, label: label ?? spec.label))
         let temporary = TemporaryOutput(directory: first.deletingLastPathComponent(), ext: outputExtension)
         do {
-            try await runBlocking { cancel in
-                try produce(cancel, first, sources, temporary.url)
+            let note = try await runBlocking { cancel -> String? in
+                let note = try produce(cancel, first, sources, temporary.url)
                 progress(1)
+                return note
             }
             try Task.checkCancellation()
             let committed = try temporary.commit(to: final)
+            if let note { notes.withLock { $0[committed] = note } }
             await names.release(final)
             return committed
         } catch {
@@ -241,7 +253,7 @@ public final class ToolService: Sendable {
         }
     }
 
-    private static func perform(_ request: PDFToolRequest, first: URL, sources: [URL], output: URL, cancel: CancelFlag) throws {
+    private static func perform(_ request: PDFToolRequest, first: URL, sources: [URL], output: URL, cancel: CancelFlag) throws -> String? {
         switch request {
         case .merge: try PDFTools.merge(sources, to: output, cancel: cancel)
         case let .split(ranges): try PDFTools.split(first, ranges: ranges, intoFolder: output, cancel: cancel)
@@ -249,17 +261,20 @@ public final class ToolService: Sendable {
         case let .watermark(options): try PDFTools.watermark(first, options: options, to: output, cancel: cancel)
         case let .number(options): try PDFTools.number(first, options: options, to: output, cancel: cancel)
         case let .unlock(password): try PDFTools.unlock(first, password: password, to: output, cancel: cancel)
+        case let .protect(password): try PDFTools.protect(first, password: password, to: output, cancel: cancel)
         }
+        return nil
     }
 
-    private static func perform(_ request: ImageToolRequest, first: URL, output: URL, cancel: CancelFlag) throws {
+    private static func perform(_ request: ImageToolRequest, first: URL, output: URL, cancel: CancelFlag) throws -> String? {
         switch request {
-        case let .compress(options): try ImageTools.compress(first, to: output, options: options, cancel: cancel)
+        case let .compress(options): return try ImageTools.compress(first, to: output, options: options, cancel: cancel)
         case .removeMetadata: try ImageTools.removeMetadata(first, to: output, cancel: cancel)
         case let .editMetadata(fields): try ImageTools.editMetadata(first, fields: fields, to: output, cancel: cancel)
         case let .crop(options): try ImageTools.crop(first, options: options, to: output, cancel: cancel)
         case let .adjust(options): try ImageTools.adjust(first, options: options, to: output, cancel: cancel)
         case let .redact(options): try ImageTools.redact(first, options: options, to: output, cancel: cancel)
         }
+        return nil
     }
 }
