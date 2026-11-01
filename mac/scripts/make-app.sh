@@ -73,6 +73,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key><string>$MIN_MACOS</string>
     <key>LSUIElement</key>$UIELEMENT
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSAppleEventsUsageDescription</key><string>PomeloO asks Finder which files are selected when you press the wheel shortcut (Control-Shift-Space), so it can offer to convert them. It does not change anything in Finder.</string>
 $ICON_KEY
 </dict>
 </plist>

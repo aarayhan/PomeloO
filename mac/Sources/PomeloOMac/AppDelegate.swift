@@ -6,9 +6,11 @@ import PomeloOCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let showPadKey = "showDropPad"
+    private static let useFinderKey = "useFinderSelection"
 
     private var statusItem: NSStatusItem?
     private var padItem: NSMenuItem?
+    private var finderItem: NSMenuItem?
     private var pad: DropPad?
     private var wheel: WheelController?
     private var coordinator: ConversionCoordinator?
@@ -16,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKey: GlobalHotKey?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        UserDefaults.standard.register(defaults: [Self.showPadKey: true])
+        UserDefaults.standard.register(defaults: [Self.showPadKey: true, Self.useFinderKey: true])
 
         let service = ConversionService()
         let coordinator = ConversionCoordinator(service: service)
@@ -70,20 +72,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         gestures = monitor
     }
 
-    /// Control-Shift-Space opens the wheel, driven by the arrow keys, for the files that were copied.
+    /// Control-Shift-Space opens the wheel, driven by the arrow keys. The files are the ones selected in
+    /// Finder when Finder is in front and may be asked, otherwise the ones copied with ⌘C.
     private func startShortcut(wheel: WheelController, coordinator: ConversionCoordinator) {
         let controlShift = controlKey | shiftKey
-        hotKey = GlobalHotKey(keyCode: kVK_Space, modifiers: controlShift) { [weak wheel, weak coordinator] in
-            let files = Self.copiedFiles()
-            guard !files.isEmpty else {
-                coordinator?.toast.show("Copy files in Finder (⌘C), then press ⌃⇧Space.")
-                return
-            }
-            wheel?.showForKeyboard(files: files, at: NSEvent.mouseLocation)
+        hotKey = GlobalHotKey(keyCode: kVK_Space, modifiers: controlShift) { [weak self, weak wheel, weak coordinator] in
+            guard let self, let wheel, let coordinator else { return }
+            Task { @MainActor in await self.openWheelFromShortcut(wheel: wheel, coordinator: coordinator) }
         }
         if hotKey == nil {
             coordinator.toast.show("⌃⇧Space is used by another app, so the keyboard shortcut is off.")
         }
+    }
+
+    private func openWheelFromShortcut(wheel: WheelController, coordinator: ConversionCoordinator) async {
+        let pointer = NSEvent.mouseLocation
+        let result = await ShortcutFiles.resolve(
+            finder: FinderAppleEvents(),
+            useFinder: UserDefaults.standard.bool(forKey: Self.useFinderKey),
+            explain: { await MainActor.run { Self.explainFinderAccess() } },
+            // read only when needed, on the main thread (the resolver runs elsewhere)
+            clipboard: { DispatchQueue.main.sync { MainActor.assumeIsolated { Self.copiedFiles() } } })
+
+        if result.files.isEmpty {
+            coordinator.toast.show(result.finderRefused
+                ? "PomeloO can't read Finder's selection. Copy the files (⌘C) first, or allow it in System Settings > Privacy & Security > Automation."
+                : "Select files in Finder, or copy them (⌘C), then press ⌃⇧Space.", seconds: 7)
+            return
+        }
+        wheel.showForKeyboard(files: result.files, at: pointer)
+    }
+
+    /// One sentence before macOS shows its own dialog. "Use Copied Files" turns the Finder selection off
+    /// (the menu turns it on again), so nobody who declines is asked twice.
+    private static func explainFinderAccess() -> Bool {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "PomeloO would like to read which files are selected in Finder."
+        alert.informativeText = "macOS will ask next whether PomeloO may control Finder; it only asks Finder for the current selection. If you say no, PomeloO uses the files you copied with ⌘C instead."
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Use Copied Files")
+        let agreed = alert.runModal() == .alertFirstButtonReturn
+        if !agreed { UserDefaults.standard.set(false, forKey: useFinderKey) }
+        return agreed
     }
 
     /// Files on the clipboard (what Finder copies with ⌘C).
@@ -104,6 +135,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         padItem.target = self
         menu.addItem(padItem)
         self.padItem = padItem
+
+        let finderItem = NSMenuItem(title: "Use Finder Selection for ⌃⇧Space", action: #selector(toggleFinder), keyEquivalent: "")
+        finderItem.target = self
+        finderItem.state = UserDefaults.standard.bool(forKey: Self.useFinderKey) ? .on : .off
+        menu.addItem(finderItem)
+        self.finderItem = finderItem
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: "Quit \(AppInfo.name)",
@@ -111,6 +148,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         quit.target = NSApp
         menu.addItem(quit)
         return menu
+    }
+
+    @objc private func toggleFinder() {
+        let on = !UserDefaults.standard.bool(forKey: Self.useFinderKey)
+        UserDefaults.standard.set(on, forKey: Self.useFinderKey)
+        finderItem?.state = on ? .on : .off
     }
 
     @objc private func togglePad() {

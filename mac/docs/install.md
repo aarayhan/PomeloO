@@ -121,10 +121,37 @@ Dipasang dengan `RegisterEventHotKey` (Carbon), yang tidak memerlukan izin: sist
 kombinasi tombol itu. Roda yang dibuka darinya memakai file yang sedang disalin (⌘C di Finder). **[BELUM DIUJI]**
 apakah macOS 15.4 ke atas meminta persetujuan saat app membaca papan klip secara terprogram.
 
+### Pilihan Finder untuk ⌃⇧Space (izin Automation)
+
+Dengan Finder di depan, ⌃⇧Space membaca pilihan Finder lewat satu Apple Event ("get selection of Finder", dikirim dari
+proses PomeloO sendiri, di luar main thread, dengan batas waktu 3 detik; 120 detik selama pengguna menjawab dialog sistem).
+Aturannya:
+
+- Finder ditanya hanya bila Finder app terdepan dan pengaturan "Use Finder Selection for ⌃⇧Space" di menu menyala.
+- Izin diminta saat pintasan pertama kali dipakai, bukan saat peluncuran. Sebelum dialog sistem muncul, PomeloO
+  menampilkan satu penjelasan ("Continue" atau "Use Copied Files"). "Use Copied Files" mematikan pengaturan itu.
+- **Jalur cadangan:** bila izin ditolak, Finder bukan terdepan, pilihan kosong, atau Finder lambat, pintasan memakai
+  berkas yang disalin dengan ⌘C. Bila itu juga kosong, muncul notifikasi, dengan petunjuk
+  Pengaturan Sistem > Privasi & Keamanan > Automation kalau izinnya yang ditolak.
+- `NSAppleEventsUsageDescription` ditulis oleh `make-app.sh` ke `Info.plist`. Tanpa kunci itu macOS tidak
+  menampilkan dialog dan permintaan gagal diam-diam. Entitlement `com.apple.security.automation.apple-events` **tidak**
+  dipasang: `make-app.sh` menandatangani ad-hoc tanpa `--options runtime`. Kalau hardened runtime diaktifkan nanti,
+  entitlement itu wajib.
+
+Diuji di Mac pemilik (macOS 26.5.1), setelah `tccutil reset AppleEvents app.pomeloo.mac`: pada build ad-hoc pertama
+muncul penjelasan PomeloO, lalu dialog izin macOS, lalu roda terbuka untuk berkas yang dipilih di Finder. Yang
+diuji dengan Finder palsu: susunan event, pembacaan balasan (satu berkas, daftar, kosong, galat), pemetaan status
+izin, dan seluruh aturan pemilihan sumber (11 tes). **[BELUM DIUJI]** jalur "ditolak" terhadap Finder sungguhan.
+
+**Izin bertahan di antara build ad-hoc.** Dua build berurutan, bundle ID sama (`app.pomeloo.mac`), CDHash berbeda
+(`63cc0035…` untuk 0.3.1 dan `801b683b…` untuk 0.3.2): izin diberikan pada build pertama, dan **pada build kedua tidak
+ada dialog macOS lagi** (dilaporkan pemilik). Jadi izin Automation tidak hilang tiap build selama bundle ID sama.
+Hanya terbukti untuk Automation, di satu versi macOS, dan antara dua build: **[BELUM DIUJI]** versi macOS lain, update
+yang menimpa app di `/Applications` lewat DMG, dan layanan lain (Screen Recording, Accessibility).
+
 ### Batas yang tetap berlaku
 
-Rilis DMG ditandatangani ad-hoc. Setiap versi baru dianggap macOS sebagai app baru, jadi **izin apa pun yang
-diberikan pengguna harus diberikan lagi setelah tiap pembaruan**, kecuali ada Developer ID (akun Apple Developer
-berbayar, belum ada). Itu belum berlaku pada gestur dan pintasan di atas karena keduanya tidak butuh izin,
-tapi akan berlaku pada fitur yang butuh: membaca pilihan Finder lewat Apple Events (izin Automation) dan menyalin
-teks dari layar (izin Screen Recording).
+Rilis DMG ditandatangani ad-hoc. Untuk izin Automation terbukti bahwa versi baru dengan bundle ID yang sama tidak
+meminta lagi (lihat di atas). Jangan menganggap itu berlaku untuk layanan lain: izin yang mungkin dibutuhkan fitur nanti
+(menyalin teks dari layar memakai Screen Recording) harus diuji sendiri, dan tanpa Developer ID (akun Apple Developer
+berbayar, belum ada) tanda tangan tetap berubah tiap build.

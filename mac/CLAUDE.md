@@ -64,7 +64,7 @@ Fase 3 selesai dengan Shift; tap Control dan Option sudah dikenali tetapi belum 
 ## Jebakan yang sudah diketahui
 
 - **Gestur Fase 3 tidak butuh izin Accessibility atau Input Monitoring, jadi tidak butuh sertifikat penandatangan yang stabil.** Itu terverifikasi di macOS 26.5.1 dengan spike (tidak ada dialog, tidak ada permintaan di log sistem). **[BELUM DIUJI]**: tap Control dan Option, macOS 13 sampai 15, dan seret dari app selain Finder. Detailnya ada di `mac/docs/install.md`.
-- **Izin yang memang dibutuhkan fitur lain terikat pada tanda tangan ad-hoc.** Izin Automation (Apple Events, misalnya untuk membaca pilihan Finder) diberikan per tanda tangan, dan tanda tangan ad-hoc berubah tiap build, jadi tiap versi rilis baru kemungkinan memunculkan dialog lagi. **[BELUM DIUJI]**: belum dicoba di dua build ad-hoc berurutan. Kecuali ada Developer ID (akun berbayar, belum ada).
+- **Izin Automation (Apple Events, dipakai untuk membaca pilihan Finder) bertahan di antara build ad-hoc dengan bundle ID yang sama.** Terbukti di macOS 26.5.1 dengan dua build berurutan (CDHash berbeda): dialog tidak muncul lagi. Jangan ubah bundle ID `app.pomeloo.mac` tanpa mengulang izin. **[BELUM DIUJI]**: versi macOS lain, update lewat DMG yang menimpa app, dan layanan lain (Screen Recording, Accessibility).
 - **Helper bertanda sandbox-inherit tidak bisa dijalankan sendiri.** Itu kasus di Tangerine; PomeloO tanpa sandbox tidak punya batasan ini. Jangan meniru entitlement itu.
 - **Mengubah isi `.app` setelah ditandatangani merusak segelnya.** Jalankan `make-app.sh` lagi, jangan mengedit bundle.
 - **Peringatan Gatekeeper** saat membuka DMG pertama kali sudah tercatat di `mac/docs/install.md` dan belum diuji.
