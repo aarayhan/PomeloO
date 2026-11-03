@@ -104,7 +104,8 @@ struct MediaTools: Sendable {
             return
         }
         guard let encoder = Self.lossy[ext] else { throw ConversionError.unsupported(from: ext, to: "compress") }
-        let kbps = Int(min(320, max(32, totalKbps)))
+        // libvorbis refuses a bitrate below what its format needs (45 kbps for 44.1 or 48 kHz stereo), so OGG stops at 48
+        let kbps = Int(min(320, max(ext == "ogg" ? 48 : 32, totalKbps)))
         try await run(["-i", source.path, "-vn", "-c:a", encoder, "-b:a", "\(kbps)k", output.path], duration: duration, progress: progress)
     }
 

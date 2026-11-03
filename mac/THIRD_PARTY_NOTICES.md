@@ -65,18 +65,22 @@ macOS, or lacks or contains the wrong encoders. libx264 and libx265 (GPL) are no
 |---|---|---|---|
 | FFmpeg | 9.0.2 | LGPL-2.1-or-later | decoders, encoders (aac, flac, PCM, GIF), muxers |
 | LAME (libmp3lame) | 3.100 | LGPL-2.0-or-later | MP3 |
-| Opus (libopus) | 1.6.1 | BSD-3-Clause | Opus and OGG audio |
+| Opus (libopus) | 1.6.1 | BSD-3-Clause | Opus audio |
+| libvorbis | 1.3.7 | BSD-3-Clause | OGG (Vorbis) audio |
+| libogg | 1.3.6 | BSD-3-Clause | the OGG container libvorbis writes into |
 | libvpx | 1.17.0 | BSD-3-Clause, with a patent grant | VP9 (WebM) |
 
 Apple's VideoToolbox and AudioToolbox (H.264, HEVC, AAC) are used through macOS and are not redistributed.
 
 - Sources: https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz, https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz,
-  https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz, https://github.com/webmproject/libvpx/archive/refs/tags/v1.17.0.tar.gz.
+  https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz, https://downloads.xiph.org/releases/ogg/libogg-1.3.6.tar.xz,
+  https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.xz, https://github.com/webmproject/libvpx/archive/refs/tags/v1.17.0.tar.gz.
   The exact URLs, SHA-256 hashes and the `configure` line of the shipped binary are in
   `Contents/Resources/BUILD_INFO.txt`; the script that built it is `mac/scripts/build-ffmpeg.sh` in PomeloO's source
-  (https://github.com/aarayhan/PomeloO). The ffmpeg and LAME sources are not modified.
+  (https://github.com/aarayhan/PomeloO). No C source is modified. The one change to any source is in libvorbis's `configure` script, which build-ffmpeg.sh edits to drop
+  `-force_cpusubtype_ALL`, a linker flag the current macOS linker rejects.
 - Licence texts shipped in the app, in `Licenses/`: `ffmpeg-COPYING.LGPLv2.1.txt`, `ffmpeg-COPYING.LGPLv3.txt`,
-  `lame-COPYING.txt`, `opus-COPYING.txt`, `libvpx-LICENSE.txt`, `libvpx-PATENTS.txt`.
+  `lame-COPYING.txt`, `opus-COPYING.txt`, `libogg-COPYING.txt`, `libvorbis-COPYING.txt`, `libvpx-LICENSE.txt`, `libvpx-PATENTS.txt`.
 - Replacing it: because ffmpeg is a separate executable and not linked into PomeloO, anyone can build their own ffmpeg
   with the script (or any other) and put it in `Tools/` in place of the bundled one. The app's ad-hoc signature then
   has to be made again (`mac/scripts/make-app.sh`).

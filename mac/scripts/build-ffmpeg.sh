@@ -9,8 +9,8 @@
 #   Licenses/           licence texts of ffmpeg and of every library linked into it
 #   BUILD_INFO.txt      versions, source hashes and the configure line
 #
-# Encoders: h264_videotoolbox, hevc_videotoolbox (Apple hardware), libvpx-vp9, libopus, libmp3lame, and ffmpeg's own
-# aac, flac, PCM and GIF. libx264 and libx265 are GPL and are NOT included. The list is checked at the end, and
+# Encoders: h264_videotoolbox, hevc_videotoolbox (Apple hardware), libvpx-vp9, libopus, libmp3lame, libvorbis (OGG),
+# and ffmpeg's own aac, flac, PCM and GIF. (ffmpeg's built-in vorbis encoder is experimental and is not used.) libx264 and libx265 are GPL and are NOT included. The list is checked at the end, and
 # the build fails if an encoder is missing or if the licence is not LGPL.
 #
 # Needs: Xcode command line tools, make, curl, shasum and pkg-config (brew install pkgconf; only a build tool,
@@ -20,8 +20,8 @@
 #
 # Sources are checked against the SHA-256 below. ffmpeg, libvpx and lame hashes were taken from the first
 # download over HTTPS on 2026-11-01 (the projects publish no hash list next to the file; ffmpeg publishes a GPG
-# signature, which this script does not check because gpg is not installed here); opus' hash matches the
-# SHA256SUMS.txt on downloads.xiph.org. Moving to another version means updating both lines.
+# signature, which this script does not check because gpg is not installed here); the hashes of opus, libogg and
+# libvorbis match the SHA256SUMS lists on downloads.xiph.org. Moving to another version means updating both lines.
 set -euo pipefail
 
 MAC_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -35,6 +35,14 @@ FFMPEG_SHA256=8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
 OPUS_VERSION=1.6.1
 OPUS_URL=https://downloads.xiph.org/releases/opus/opus-$OPUS_VERSION.tar.gz
 OPUS_SHA256=6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1
+
+OGG_VERSION=1.3.6
+OGG_URL=https://downloads.xiph.org/releases/ogg/libogg-$OGG_VERSION.tar.xz
+OGG_SHA256=5c8253428e181840cd20d41f3ca16557a9cc04bad4a3d04cce84808677fa1061
+
+VORBIS_VERSION=1.3.7
+VORBIS_URL=https://downloads.xiph.org/releases/vorbis/libvorbis-$VORBIS_VERSION.tar.xz
+VORBIS_SHA256=b33cc4934322bcbf6efcbacf49e3ca01aadbea4114ec9589d1b1e9d20f72954b
 
 LAME_VERSION=3.100
 LAME_URL=https://downloads.sourceforge.net/project/lame/lame/$LAME_VERSION/lame-$LAME_VERSION.tar.gz
@@ -110,6 +118,24 @@ OPUS=$(unpack "$(fetch opus "$OPUS_URL" "$OPUS_SHA256")")
     && make -j"$JOBS" >>"$WORK/opus.log" 2>&1 && make install >>"$WORK/opus.log" 2>&1) \
     || { tail -30 "$WORK/opus.log"; fail "opus failed"; }
 
+# --- libogg, then libvorbis which needs it (BSD-3-Clause both)
+step "libogg $OGG_VERSION"
+OGG=$(unpack "$(fetch libogg "$OGG_URL" "$OGG_SHA256")")
+(cd "$OGG" \
+    && ./configure --prefix="$PREFIX" --disable-shared --enable-static --disable-dependency-tracking >"$WORK/ogg.log" 2>&1 \
+    && make -j"$JOBS" >>"$WORK/ogg.log" 2>&1 && make install >>"$WORK/ogg.log" 2>&1) \
+    || { tail -30 "$WORK/ogg.log"; fail "libogg failed"; }
+step "libvorbis $VORBIS_VERSION"
+VORBIS=$(unpack "$(fetch libvorbis "$VORBIS_URL" "$VORBIS_SHA256")")
+# The only change to any source: libvorbis 1.3.7's configure passes -force_cpusubtype_ALL on macOS, a linker flag Apple's
+# current linker rejects ("unknown options"). Removing it is the usual fix; no C file is touched.
+sed -i '' 's/-force_cpusubtype_ALL//g' "$VORBIS/configure"
+(cd "$VORBIS" \
+    && ./configure --prefix="$PREFIX" --with-ogg="$PREFIX" --disable-shared --enable-static --disable-docs --disable-examples \
+        --disable-oggtest --disable-dependency-tracking >"$WORK/vorbis.log" 2>&1 \
+    && make -j"$JOBS" >>"$WORK/vorbis.log" 2>&1 && make install >>"$WORK/vorbis.log" 2>&1) \
+    || { tail -30 "$WORK/vorbis.log"; fail "libvorbis failed"; }
+
 # --- libvpx (BSD-3-Clause)
 step "libvpx $VPX_VERSION"
 VPX=$(unpack "$(fetch libvpx "$VPX_URL" "$VPX_SHA256")")
@@ -130,10 +156,10 @@ CONFIGURE=(
     --prefix="$PREFIX/ffmpeg" --arch=arm64 --cc=clang
     --extra-cflags="-I$PREFIX/include -mmacosx-version-min=$MIN_MACOS"
     --extra-ldflags="-L$PREFIX/lib -mmacosx-version-min=$MIN_MACOS"
-    --enable-static --disable-shared --enable-pic
+    --enable-static --disable-shared --enable-pic --pkg-config-flags=--static
     --disable-autodetect
     --enable-videotoolbox --enable-audiotoolbox --enable-zlib
-    --enable-libmp3lame --enable-libopus --enable-libvpx
+    --enable-libmp3lame --enable-libopus --enable-libvorbis --enable-libvpx
     --disable-debug --disable-doc --disable-ffplay --disable-ffprobe
     --disable-network --disable-sdl2
 )
@@ -159,7 +185,7 @@ BAD=$(otool -L "$BIN" | tail -n +2 | awk '{print $1}' | grep -v -E '^(/usr/lib/|
 
 # 3. encoders: all wanted ones present, no GPL ones
 ENCODERS=$("$BIN" -hide_banner -encoders)
-for enc in h264_videotoolbox hevc_videotoolbox libvpx-vp9 libopus libmp3lame aac flac pcm_s16le gif; do
+for enc in h264_videotoolbox hevc_videotoolbox libvpx-vp9 libopus libmp3lame libvorbis aac flac pcm_s16le gif; do
     grep -qE " $enc( |$)" <<<"$ENCODERS" || fail "encoder missing: $enc"
 done
 for enc in libx264 libx265 libfdk_aac; do
@@ -174,12 +200,16 @@ cp "$FFMPEG/COPYING.LGPLv2.1" "$OUT/Licenses/ffmpeg-COPYING.LGPLv2.1.txt"
 cp "$FFMPEG/COPYING.LGPLv3" "$OUT/Licenses/ffmpeg-COPYING.LGPLv3.txt"
 cp "$LAME/COPYING" "$OUT/Licenses/lame-COPYING.txt"
 cp "$OPUS/COPYING" "$OUT/Licenses/opus-COPYING.txt"
+cp "$OGG/COPYING" "$OUT/Licenses/libogg-COPYING.txt"
+cp "$VORBIS/COPYING" "$OUT/Licenses/libvorbis-COPYING.txt"
 cp "$VPX/LICENSE" "$OUT/Licenses/libvpx-LICENSE.txt"
 cp "$VPX/PATENTS" "$OUT/Licenses/libvpx-PATENTS.txt"
 {
     echo "ffmpeg $FFMPEG_VERSION  $FFMPEG_URL  sha256 $FFMPEG_SHA256"
     echo "lame $LAME_VERSION  $LAME_URL  sha256 $LAME_SHA256"
     echo "opus $OPUS_VERSION  $OPUS_URL  sha256 $OPUS_SHA256"
+    echo "libogg $OGG_VERSION  $OGG_URL  sha256 $OGG_SHA256"
+    echo "libvorbis $VORBIS_VERSION  $VORBIS_URL  sha256 $VORBIS_SHA256"
     echo "libvpx $VPX_VERSION  $VPX_URL  sha256 $VPX_SHA256"
     echo "built with $(clang --version | head -1), macOS SDK $(xcrun --show-sdk-version), deployment target $MIN_MACOS"
     echo "configure: ${CONFIGURE[*]}"
