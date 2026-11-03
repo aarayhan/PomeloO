@@ -56,7 +56,7 @@ Kerjakan satu fase sekali jalan, hentikan setelah kriterianya terpenuhi, dan jan
 | 1 | Core: protokol mesin, pemuat katalog, penamaan hasil, job runner dengan progres dan batal; konversi gambar (ImageIO) dan audio/video (ffmpeg) | `swift test` hijau; satu konversi gambar dan satu audio berjalan | selesai |
 | 2 | Pintu masuk UI: pad melayang untuk drop file, lalu roda format di kursor | drop file memilih format dan konversi jalan | selesai |
 | 3 | Gestur global (seret file di Finder lalu tap Shift, Ctrl, atau Alt) dan pintasan keyboard | roda muncul dari Finder | selesai |
-| 4 | Tool per jenis file (kompres, metadata, OCR, PDF, dan seterusnya), bertahap menurut pemakaian | tiap tool punya tes di Core | berjalan: PDF dan gambar selesai di Core, UI Tools (roda Tools dan dialog) ada; audio/video (4c) dan Actions (4d, usulan) belum |
+| 4 | Tool per jenis file (kompres, metadata, OCR, PDF, dan seterusnya), bertahap menurut pemakaian | tiap tool punya tes di Core | berjalan: PDF, gambar, audio dan video selesai di Core dengan roda Tools dan dialog; Actions (4d, usulan) belum; burn-in subtitle dan target OGG menunggu keputusan pemilik |
 | 5 | Recipes, riwayat dengan undo, pembaruan | paritas dengan Windows | belum |
 
 Gestur: tap Shift membuka roda Convert, tap Control membuka roda Tools (Fase 4); tap Option (Actions) dikenali tetapi belum membuka apa pun. **[BELUM DIUJI]** tap Control dan Option di Mac, dialog Tools dengan tangan, dan macOS 13 sampai 15.
@@ -65,7 +65,9 @@ Gestur: tap Shift membuka roda Convert, tap Control membuka roda Tools (Fase 4);
 
 - `protectPDF` memakai AES-128 dengan label "AES-128"; jangan menyebut AES-256 untuk Mac, jangan menulis kripto sendiri (rincian di `docs/parity.md`).
 - Kompres PNG sementara memperkecil piksel dan memberi tahu pengguna. **Kuantisasi 256 warna (dengan alfa) harus selesai sebelum rilis pertama.**
-- Urutan: UI Tools (selesai), skrip build ffmpeg rilis (selesai, build LGPL berhasil tanpa melewati batas waktu), kelompok audio/video (4c), lalu Actions.
+- Urutan: UI Tools (selesai), skrip build ffmpeg rilis (selesai, build LGPL berhasil tanpa melewati batas waktu), kelompok audio/video (4c, selesai kecuali dua hal di bawah), lalu Actions.
+- Menunggu pemilik: (1) `libvorbis`+`libogg` ke build ffmpeg atau OGG bukan target; (2) libass (+freetype, harfbuzz, fribidi) ke build ffmpeg atau burn-in subtitle ditunda. Detail di `docs/parity.md`.
+- H.264 selalu lewat VideoToolbox lebih dulu (`FFmpegEncoders.h264`), juga di build Homebrew, supaya dev dan rilis sama.
 - `mac/THIRD_PARTY_NOTICES.md` memuat libwebp dan disalin ke `Contents/Resources/Licenses/` oleh `make-app.sh`; ffmpeg sudah termasuk; `build-ffmpeg.sh` menyalin lisensinya ke `build/ffmpeg/Licenses/`.
 
 ## Jebakan yang sudah diketahui

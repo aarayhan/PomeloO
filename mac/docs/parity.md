@@ -77,3 +77,38 @@ terlalu besar). Selisihnya:
 - **Tidak ditawarkan bila Mac tidak bisa menulis format itu** (misalnya HEIC tanpa encoder): alat yang menulis ulang
   berkas asli (kompres, metadata, edit, crop, redaksi) hanya muncul untuk format yang bisa ditulis.
 - Tes tidak membandingkan piksel dengan hasil Python. Yang diuji adalah rumusnya di titik-titik yang bisa dihitung.
+
+## Alat audio dan video (kelompok 4c)
+
+Diuji dengan ffmpeg build rilis (`mac/build/ffmpeg`) dan dengan Homebrew; tes `MediaToolsTests` (41) lulus di keduanya.
+Tool yang ada: compress, metadata, normalize, visualizer, trim (audio dan video), channels, bleep, mute, crop, speed,
+snapshots, split, redact, join. Yang sama dengan Windows: rumus filter dan urutannya (`pomeloo/tools/media.py`), label hasil,
+penamaan, dua lintasan loudnorm, atempo berantai, join di kanvas klip pertama dengan keheningan untuk klip tanpa suara.
+Selisihnya:
+
+- **H.264 ditulis oleh VideoToolbox, bukan libx264** (build rilis tidak punya libx264 karena GPL). Konversi ke MP4, MOV, MKV dan
+  semua tool yang menulis ulang video memakai `-q:v 65`, bukan CRF 23. **[BELUM DIUJI]** bahwa kualitasnya setara pada
+  rekaman nyata; hanya klip sintetis yang dibandingkan. Build pengembangan juga memilih VideoToolbox lebih dulu supaya
+  perilakunya sama dengan rilis; libx264 hanya dipakai bila VideoToolbox tidak ada.
+- **Kompres video satu lintasan dengan bitrate hitungan**, bukan dua lintasan x264. Ukuran hasil mendekati target (klip uji 4 detik:
+  target 400 kbps menjadi 432 kbps), tidak setepat dua lintasan. Dialog mengatakannya.
+- **Target OGG tidak ditawarkan, dan tidak ada tool yang menulis OGG**: `libvorbis` tidak ada di build rilis. Membaca OGG tetap bisa.
+  Keputusan pemilik: tambahkan libvorbis dan libogg (BSD) ke `build-ffmpeg.sh`, atau lepaskan OGG sebagai target.
+- **Burn in subtitles belum ada**: filter `subtitles` dan `drawtext` butuh libass dan freetype, yang tidak ada di build rilis.
+  Keputusan pemilik: tambahkan libass (ISC), freetype (FTL), harfbuzz (MIT), fribidi (LGPL) dan fontconfig atau font bawaan ke
+  skrip build (menambah waktu build dan beberapa lisensi di notices), atau tunda tool ini.
+- **Blur redaksi memakai `gblur`**, karena filter `boxblur` tidak ada di build rilis. Kekuatannya mirip, bukan identik.
+- **Metadata**: menghapus memakai `-fflags +bitexact` supaya ffmpeg tidak menulis tag "Lavf" ke file yang seharusnya tanpa tag
+  (kode Windows tidak memakai opsi ini). Mengedit dibatasi enam kolom (title, artist, album, genre, date, comment); Windows menampilkan
+  semua tag file.
+- **Dialog memakai angka, bukan pemutar dan gambar area.** Waktu diketik (`83.5`, `1:23.5`), crop video dari tengah (aspek atau piksel
+  persis), redaksi video lewat kotak persen dengan waktu mulai dan selesai. Pemutar dengan tanda In/Out, pemilihan area, dan
+  pemutaran Original/Result ada di Windows dan belum ada di Mac.
+- **Kecepatan dibatasi 0,25× sampai 8×.** Visualizer tidak memakai `-tune stillimage` (khusus libx264). Snapshot di ujung video
+  digeser sedikit ke dalam supaya selalu ada bingkai.
+- **Alat ditawarkan hanya bila ffmpeg yang dipakai bisa menulis formatnya**: misalnya Compress untuk WAV butuh encoder FLAC,
+  visualizer dan join butuh H.264 dan AAC. Tanpa ffmpeg tidak ada tool audio atau video yang muncul.
+- **Split tepat** memaksa key frame di titik potong dan memotong dengan segmen; durasi tiap bagian cocok dalam 0,3 detik di klip uji.
+  **[BELUM DIUJI]** pada video nyata dengan GOP panjang.
+- **Dialog audio dan video belum dilihat dengan tangan**; tes hanya membuktikan tata letak dan kata-katanya digambar. **[BELUM DIUJI]**
+  macOS 13 sampai 15.
