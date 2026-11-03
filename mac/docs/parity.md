@@ -92,11 +92,19 @@ Selisihnya:
   perilakunya sama dengan rilis; libx264 hanya dipakai bila VideoToolbox tidak ada.
 - **Kompres video satu lintasan dengan bitrate hitungan**, bukan dua lintasan x264. Ukuran hasil mendekati target (klip uji 4 detik:
   target 400 kbps menjadi 432 kbps), tidak setepat dua lintasan. Dialog mengatakannya.
-- **Target OGG tidak ditawarkan, dan tidak ada tool yang menulis OGG**: `libvorbis` tidak ada di build rilis. Membaca OGG tetap bisa.
-  Keputusan pemilik: tambahkan libvorbis dan libogg (BSD) ke `build-ffmpeg.sh`, atau lepaskan OGG sebagai target.
-- **Burn in subtitles belum ada**: filter `subtitles` dan `drawtext` butuh libass dan freetype, yang tidak ada di build rilis.
-  Keputusan pemilik: tambahkan libass (ISC), freetype (FTL), harfbuzz (MIT), fribidi (LGPL) dan fontconfig atau font bawaan ke
-  skrip build (menambah waktu build dan beberapa lisensi di notices), atau tunda tool ini.
+- **OGG ditulis oleh libvorbis** (`-q:a 5`, seperti Windows), yang ada di build rilis (libvorbis 1.3.7 dan libogg 1.3.6, BSD-3-Clause).
+  Encoder bawaan ffmpeg untuk Vorbis tidak dipakai (eksperimental) dan OGG tidak diganti dengan Opus. Build Homebrew tidak punya
+  libvorbis, jadi di sana OGG tidak ditawarkan dan tes OGG (`OGGTests`) memakai build rilis langsung; tanpa build itu tes
+  dilewati dengan penanda **[BELUM DIUJI]**, tidak dihitung lulus. Kompres OGG berhenti di 48 kbps ke bawah karena libvorbis menolak
+  bitrate di bawah 45 kbps untuk stereo 44,1 atau 48 kHz (kode Windows memakai batas bawah 32 untuk semua format; apakah ini membuat
+  kompres OGG gagal di Windows **[BELUM DIUJI]**).
+- **Burn in subtitles ditunda sampai setelah rilis pertama.** Filter `subtitles` dan `drawtext` butuh libass dan freetype, yang
+  tidak ada di build rilis, jadi tool ini disembunyikan. Keputusan pemilik: kerjakan sebagai tugas build tersendiri bila ada
+  permintaan, bukan sekarang. Alasannya empat sampai lima pustaka baru dengan lisensi berbeda (libass ISC, freetype FTL, harfbuzz MIT,
+  fribidi LGPL-2.1+, libunibreak), pengujian font untuk Arab, Thai, CJK, dan gaya .ass. Jangan membuat versi setengah jadi lewat
+  `drawtext` dengan penguraian SRT sendiri (tanpa gaya .ass, teks kanan-ke-kiri salah) atau lewat AVFoundation (hanya MP4 dan MOV).
+  Bila dibuka lagi: periksa apakah libass memakai penyedia font CoreText di macOS **[BELUM DIUJI]** supaya fontconfig tidak
+  diperlukan, dan periksa kewajiban LGPL fribidi pada build statis.
 - **Blur redaksi memakai `gblur`**, karena filter `boxblur` tidak ada di build rilis. Kekuatannya mirip, bukan identik.
 - **Metadata**: menghapus memakai `-fflags +bitexact` supaya ffmpeg tidak menulis tag "Lavf" ke file yang seharusnya tanpa tag
   (kode Windows tidak memakai opsi ini). Mengedit dibatasi enam kolom (title, artist, album, genre, date, comment); Windows menampilkan
