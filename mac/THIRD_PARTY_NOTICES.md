@@ -53,16 +53,39 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 
+### ffmpeg 9.0.2 (audio and video conversion) and the libraries inside it
+
+Run as a separate program, `Contents/Resources/Tools/ffmpeg`, for the audio and video formats AVFoundation cannot
+handle. It is **not** the Homebrew build: `mac/scripts/build-ffmpeg.sh` builds it from the projects' own release
+sources, static, arm64 only, configured **without `--enable-gpl` and without `--enable-nonfree`**, so it is licensed
+under the **LGPL-2.1-or-later**. The script fails if the binary reports anything else, links a library outside
+macOS, or lacks or contains the wrong encoders. libx264 and libx265 (GPL) are not in it.
+
+| Component | Version | Licence | Used for |
+|---|---|---|---|
+| FFmpeg | 9.0.2 | LGPL-2.1-or-later | decoders, encoders (aac, flac, PCM, GIF), muxers |
+| LAME (libmp3lame) | 3.100 | LGPL-2.0-or-later | MP3 |
+| Opus (libopus) | 1.6.1 | BSD-3-Clause | Opus and OGG audio |
+| libvpx | 1.17.0 | BSD-3-Clause, with a patent grant | VP9 (WebM) |
+
+Apple's VideoToolbox and AudioToolbox (H.264, HEVC, AAC) are used through macOS and are not redistributed.
+
+- Sources: https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz, https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz,
+  https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz, https://github.com/webmproject/libvpx/archive/refs/tags/v1.17.0.tar.gz.
+  The exact URLs, SHA-256 hashes and the `configure` line of the shipped binary are in
+  `Contents/Resources/BUILD_INFO.txt`; the script that built it is `mac/scripts/build-ffmpeg.sh` in PomeloO's source
+  (https://github.com/aarayhan/PomeloO). The ffmpeg and LAME sources are not modified.
+- Licence texts shipped in the app, in `Licenses/`: `ffmpeg-COPYING.LGPLv2.1.txt`, `ffmpeg-COPYING.LGPLv3.txt`,
+  `lame-COPYING.txt`, `opus-COPYING.txt`, `libvpx-LICENSE.txt`, `libvpx-PATENTS.txt`.
+- Replacing it: because ffmpeg is a separate executable and not linked into PomeloO, anyone can build their own ffmpeg
+  with the script (or any other) and put it in `Tools/` in place of the bundled one. The app's ad-hoc signature then
+  has to be made again (`mac/scripts/make-app.sh`).
+- The patent grants of the codecs above are not a promise that no patent applies to the formats themselves; PomeloO
+  does not ship a licence for them.
+
 ## Used but not shipped
 
 | Component | How it is used | Notes |
 |---|---|---|
 | Apple frameworks (ImageIO, Core Graphics, PDFKit, Vision, AVFoundation, Core Image, AppKit, SwiftUI) | Image, PDF, OCR and audio work | Part of macOS; nothing of them is redistributed |
 | ffmpeg (Homebrew build) | Audio and video conversions, **local development and tests only** | **Never bundled.** The Homebrew build is GPL-3.0-or-later and links shared libraries from `/opt/homebrew`, so it cannot be shipped |
-
-## Planned, not in the app yet
-
-- **ffmpeg** (a static arm64 build made from the official sources, without `--enable-gpl`, with the encoders listed in
-  `mac/CLAUDE.md`) and the encoder libraries it links: its entry, with the licence of each library (LGPL parts
-  need their own notice and a way to relink), is added in the same change that adds the build script. Until then the app
-  carries no ffmpeg and offers no conversion that needs one.

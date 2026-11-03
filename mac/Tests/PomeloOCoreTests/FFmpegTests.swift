@@ -210,7 +210,7 @@ final class FFmpegTests: TempDirectoryTestCase {
         let runner = FFmpegRunner(executable: ffmpeg)
         let source = file("clip.mp4")
         try await runner.run(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=25:duration=2",
-                              "-f", "lavfi", "-i", "sine=duration=2", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                              "-f", "lavfi", "-i", "sine=duration=2", "-shortest", "-c:v", "h264_videotoolbox", "-b:v", "500k",  // an encoder the release build has too
                               "-c:a", "aac", source.path])
         let real = ConversionService(engines: [FFmpegEngine(executable: ffmpeg)])
         let targets = real.availableTargets(forExtension: "mp4")
