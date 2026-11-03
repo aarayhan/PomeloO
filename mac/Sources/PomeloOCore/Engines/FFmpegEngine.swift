@@ -20,8 +20,10 @@ public struct FFmpegEngine: ConversionEngine {
     public let name = "ffmpeg"
     private let executable: URL?
 
-    private static let audio: Set<String> = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff", "wma"]
-    private static let video: Set<String> = ["mp4", "mov", "mkv", "webm", "avi", "wmv"]
+    static let audioExtensions: Set<String> = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff", "wma"]
+    static let videoExtensions: Set<String> = ["mp4", "mov", "mkv", "webm", "avi", "wmv"]
+    private static var audio: Set<String> { audioExtensions }
+    private static var video: Set<String> { videoExtensions }
 
     public init(executable: URL? = FFmpegLocator.find()) {
         self.executable = executable
@@ -43,7 +45,7 @@ public struct FFmpegEngine: ConversionEngine {
 
     public func convert(_ job: ConversionJob, progress: @escaping @Sendable (Double) -> Void) async throws {
         guard let executable else { throw ConversionError.engineUnavailable("ffmpeg") }
-        guard let codec = Self.outputArguments(for: job.target) else {
+        guard let codec = Self.outputArguments(for: job.target, encoders: FFmpegEncoders.available(at: executable)) else {
             throw ConversionError.unsupported(from: job.sourceExtension, to: job.target)
         }
         let runner = FFmpegRunner(executable: executable)
@@ -68,30 +70,54 @@ public struct FFmpegEngine: ConversionEngine {
          "-t", "0", "-f", "null", "-"]
     }
 
-    private static let h264 = ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p"]
-    private static let evenSize = "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+    static let evenSize = "scale=trunc(iw/2)*2:trunc(ih/2)*2"
 
-    /// Everything between the input and the output file for this target.
-    static func outputArguments(for target: String) -> [String]? {
-        switch target {
-        case "mp3": ["-vn", "-c:a", "libmp3lame", "-q:a", "2"]
-        case "m4a": ["-vn", "-c:a", "aac", "-b:a", "192k"]
-        case "wav": ["-vn", "-c:a", "pcm_s16le"]
-        case "flac": ["-vn", "-c:a", "flac"]
-        case "ogg": ["-vn", "-c:a", "libvorbis", "-q:a", "5"]
-        case "opus": ["-vn", "-c:a", "libopus", "-b:a", "128k"]
-        case "aiff": ["-vn", "-c:a", "pcm_s16be"]
-        case "wma": ["-vn", "-c:a", "wmav2", "-b:a", "192k"]
-        case "mp4": ["-vf", evenSize] + h264 + ["-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"]
-        case "mov", "mkv": ["-vf", evenSize] + h264 + ["-c:a", "aac", "-b:a", "160k"]
-        case "webm": ["-vf", evenSize, "-c:v", "libvpx-vp9", "-crf", "32", "-b:v", "0", "-row-mt", "1", "-c:a", "libopus"]
-        case "avi": ["-vf", evenSize, "-c:v", "mpeg4", "-q:v", "3", "-c:a", "libmp3lame", "-q:a", "3"]
-        case "wmv": ["-vf", evenSize, "-c:v", "wmv2", "-q:v", "3", "-c:a", "wmav2", "-b:a", "160k"]
-        case "gif":
-            ["-filter_complex", "fps=12,scale='min(iw,640)':-2:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse",
-             "-loop", "0"]
+    /// H.264 settings. Windows uses libx264 at CRF 23; Apple's encoder has no CRF, its `-q:v` (0 to 100) is the nearest
+    /// thing. **[BELUM DIUJI]** that 65 looks as good as CRF 23 on real footage; only synthetic clips were compared.
+    static func h264Arguments(encoder: String) -> [String] {
+        encoder == "libx264"
+            ? ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p"]
+            : ["-c:v", "h264_videotoolbox", "-q:v", "65", "-pix_fmt", "yuv420p"]
+    }
+
+    /// The audio encoder and its settings for an audio extension (`AUDIO_CODEC` in pomeloo/engines/media.py).
+    static func audioCodec(for ext: String) -> [String]? {
+        switch ext {
+        case "mp3": ["-c:a", "libmp3lame", "-q:a", "2"]
+        case "m4a": ["-c:a", "aac", "-b:a", "192k"]
+        case "wav": ["-c:a", "pcm_s16le"]
+        case "flac": ["-c:a", "flac"]
+        case "ogg": ["-c:a", "libvorbis", "-q:a", "5"]
+        case "opus": ["-c:a", "libopus", "-b:a", "128k"]
+        case "aiff": ["-c:a", "pcm_s16be"]
+        case "wma": ["-c:a", "wmav2", "-b:a", "192k"]
         default: nil
         }
+    }
+
+    /// Video and audio encoders and settings for a video extension (`VIDEO_CODEC`). `encoders` is what the ffmpeg
+    /// in use can write (nil when unknown); it picks the H.264 encoder.
+    static func videoCodec(for ext: String, encoders: Set<String>? = nil) -> [String]? {
+        switch ext {
+        case "mp4": h264Arguments(encoder: FFmpegEncoders.h264(in: encoders)) + ["-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"]
+        case "mov", "mkv": h264Arguments(encoder: FFmpegEncoders.h264(in: encoders)) + ["-c:a", "aac", "-b:a", "160k"]
+        case "webm": ["-c:v", "libvpx-vp9", "-crf", "32", "-b:v", "0", "-row-mt", "1", "-c:a", "libopus"]
+        case "avi": ["-c:v", "mpeg4", "-q:v", "3", "-c:a", "libmp3lame", "-q:a", "3"]
+        case "wmv": ["-c:v", "wmv2", "-q:v", "3", "-c:a", "wmav2", "-b:a", "160k"]
+        default: nil
+        }
+    }
+
+    /// Everything between the input and the output file for this target. `encoders` is what the ffmpeg in use can
+    /// write (nil when unknown); it picks the H.264 encoder.
+    static func outputArguments(for target: String, encoders: Set<String>? = nil) -> [String]? {
+        if let audio = audioCodec(for: target) { return ["-vn"] + audio }
+        if let video = videoCodec(for: target, encoders: encoders) { return ["-vf", evenSize] + video }
+        if target == "gif" {
+            return ["-filter_complex", "fps=12,scale='min(iw,640)':-2:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse",
+                    "-loop", "0"]
+        }
+        return nil
     }
 
     // MARK: reading ffmpeg's output

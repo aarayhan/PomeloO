@@ -54,7 +54,8 @@ final class FFmpegTests: TempDirectoryTestCase {
     func testArgumentsFollowTheWindowsSettings() {
         XCTAssertEqual(FFmpegEngine.outputArguments(for: "mp3"), ["-vn", "-c:a", "libmp3lame", "-q:a", "2"])
         XCTAssertEqual(FFmpegEngine.outputArguments(for: "opus"), ["-vn", "-c:a", "libopus", "-b:a", "128k"])
-        XCTAssertTrue(FFmpegEngine.outputArguments(for: "mp4")!.contains("libx264"))
+        XCTAssertTrue(FFmpegEngine.outputArguments(for: "mp4")!.contains("h264_videotoolbox"), "the release build has no libx264")
+        XCTAssertTrue(FFmpegEngine.outputArguments(for: "mp4", encoders: ["libx264"])!.contains("libx264"))
         XCTAssertTrue(FFmpegEngine.outputArguments(for: "mp4")!.contains("+faststart"))
         XCTAssertTrue(FFmpegEngine.outputArguments(for: "gif")!.contains("-filter_complex"))
         XCTAssertNil(FFmpegEngine.outputArguments(for: "png"))

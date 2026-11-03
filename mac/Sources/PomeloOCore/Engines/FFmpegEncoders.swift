@@ -48,9 +48,26 @@ enum FFmpegEncoders {
         }
     }
 
+    /// What can write in place of a required encoder, tried in this order. The release build has no libx264 (GPL),
+    /// so H.264 is written by Apple's hardware encoder; a build that lacks that one but has libx264 still works.
+    static let substitutes: [String: [String]] = ["libx264": ["h264_videotoolbox"]]
+
+    /// The encoder that writes H.264 in this build: VideoToolbox first, so a development build behaves like the release one.
+    static func h264(in encoders: Set<String>?) -> String {
+        guard let encoders else { return "h264_videotoolbox" }  // list unknown: the release encoder
+        if encoders.contains("h264_videotoolbox") { return "h264_videotoolbox" }
+        return encoders.contains("libx264") ? "libx264" : "h264_videotoolbox"
+    }
+
     static func supports(_ target: String, at executable: URL) -> Bool {
         guard let encoders = available(at: executable) else { return true }
-        return required(for: target).allSatisfy(encoders.contains)
+        return supports(target, encoders: encoders)
+    }
+
+    static func supports(_ target: String, encoders: Set<String>) -> Bool {
+        required(for: target).allSatisfy { name in
+            encoders.contains(name) || (substitutes[name] ?? []).contains(where: encoders.contains)
+        }
     }
 
     // MARK: reading the list

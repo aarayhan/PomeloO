@@ -49,6 +49,9 @@ final class ConversionCoordinator {
             case let .image(request):
                 let ids = await tools.enqueue(request, on: files)
                 await self?.finish(ids, files: files)
+            case let .media(request):
+                let ids = await tools.enqueue(request, on: files)
+                await self?.finish(ids, files: files)
             case let .text(request):
                 await self?.copyText(request, from: files)
             }

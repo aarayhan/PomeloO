@@ -42,7 +42,25 @@ final class FFmpegEncoderTests: TempDirectoryTestCase {
         let engine = FFmpegEngine(executable: try fakeFFmpeg(encoders: ["libmp3lame", "aac", "pcm_s16le"]))
         XCTAssertTrue(engine.canConvert(from: "ogg", to: "mp3"))
         XCTAssertFalse(engine.canConvert(from: "mp3", to: "ogg"), "no libvorbis in this build")
-        XCTAssertFalse(engine.canConvert(from: "mov", to: "mp4"), "no libx264 in this build")
+        XCTAssertFalse(engine.canConvert(from: "mov", to: "mp4"), "no H.264 encoder in this build")
+    }
+
+    func testVideoToolboxWritesH264WhenThereIsNoLibx264() throws {
+        let release = FFmpegEngine(executable: try fakeFFmpeg(encoders: ["h264_videotoolbox", "aac"]))
+        XCTAssertTrue(release.canConvert(from: "mkv", to: "mp4"), "the release build has no libx264")
+        XCTAssertTrue(release.canConvert(from: "mp4", to: "mov"))
+        XCTAssertTrue(FFmpegEncoders.supports("mkv", encoders: ["libx264", "aac"]), "a build with only libx264 still works")
+        XCTAssertFalse(FFmpegEncoders.supports("mkv", encoders: ["h264_videotoolbox"]), "AAC is needed too")
+    }
+
+    func testTheH264EncoderIsVideoToolboxFirst() {
+        XCTAssertEqual(FFmpegEncoders.h264(in: ["libx264", "h264_videotoolbox"]), "h264_videotoolbox", "dev builds behave like the release")
+        XCTAssertEqual(FFmpegEncoders.h264(in: ["libx264"]), "libx264")
+        XCTAssertEqual(FFmpegEncoders.h264(in: nil), "h264_videotoolbox")
+        let arguments = FFmpegEngine.outputArguments(for: "mp4", encoders: ["h264_videotoolbox", "aac"])!
+        XCTAssertTrue(arguments.contains("h264_videotoolbox"))
+        XCTAssertFalse(arguments.contains("-crf"), "VideoToolbox has no CRF")
+        XCTAssertTrue(arguments.contains("+faststart"))
     }
 
     func testAChangedBinaryIsReadAgain() throws {

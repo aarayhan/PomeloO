@@ -44,7 +44,33 @@ public enum ToolSpecs {
         ToolSpec(id: "extractText", label: nil, outputExtension: nil, combinesSelection: false),
     ]
 
-    public static let all: [String: ToolSpec] = Dictionary(uniqueKeysWithValues: (pdf + image).map { ($0.id, $0) })
+    /// The audio tools. `compress` and `removeMetadata` are the picture tools' specs, shared by id.
+    public static let audio: [ToolSpec] = [
+        ToolSpec(id: "compress", label: "Compressed", outputExtension: nil, combinesSelection: false),
+        ToolSpec(id: "removeMetadata", label: "No Metadata", outputExtension: nil, combinesSelection: false),
+        ToolSpec(id: "normalizeAudio", label: "Normalized", outputExtension: nil, combinesSelection: false),
+        ToolSpec(id: "audioToVideo", label: "Visualizer", outputExtension: "mp4", combinesSelection: false),
+        ToolSpec(id: "trimAudio", label: "Trimmed", outputExtension: nil, combinesSelection: false),
+        ToolSpec(id: "audioChannels", label: "Mono", outputExtension: nil, combinesSelection: false),
+        ToolSpec(id: "redactAudio", label: "Bleeped", outputExtension: nil, combinesSelection: false),
+    ]
+
+    /// The video tools. Burning in subtitles is not here: the release ffmpeg has no libass.
+    public static let video: [ToolSpec] = [
+        ToolSpec(id: "compress", label: "Compressed", outputExtension: nil, combinesSelection: false),
+        ToolSpec(id: "removeMetadata", label: "No Metadata", outputExtension: nil, combinesSelection: false),
+        ToolSpec(id: "muteVideo", label: "Muted", outputExtension: nil, combinesSelection: false),
+        ToolSpec(id: "trimVideo", label: "Trimmed", outputExtension: nil, combinesSelection: false),
+        ToolSpec(id: "cropVideo", label: "Cropped", outputExtension: nil, combinesSelection: false),
+        ToolSpec(id: "changeVideoSpeed", label: "Speed", outputExtension: nil, combinesSelection: false),
+        ToolSpec(id: "videoSnapshots", label: "Snapshot", outputExtension: "png", combinesSelection: false),
+        ToolSpec(id: "splitVideo", label: "Clips", outputExtension: "folder", combinesSelection: false),
+        ToolSpec(id: "redactVideo", label: "Redacted", outputExtension: nil, combinesSelection: false),
+        ToolSpec(id: "joinVideos", label: "Joined", outputExtension: "mp4", combinesSelection: true),
+    ]
+
+    public static let all: [String: ToolSpec] = Dictionary((pdf + image + audio + video).map { ($0.id, $0) },
+                                                           uniquingKeysWith: { first, _ in first })
 
     /// Tools that still make sense with several files selected (`MULTI_OK` in pomeloo/catalog.py).
     static let multipleFilesOK: Set<String> = [

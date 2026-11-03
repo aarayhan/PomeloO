@@ -41,6 +41,21 @@ final class ToolDialogTests: XCTestCase {
         }
     }
 
+    func testTheAudioAndVideoDialogsAreBuilt() throws {
+        let video = [URL(fileURLWithPath: "/tmp/a.mp4"), URL(fileURLWithPath: "/tmp/b.mp4")]
+        let audio = [URL(fileURLWithPath: "/tmp/a.mp3")]
+        let cases: [(String, [URL])] = [
+            ("compress", video), ("compress", audio), ("removeMetadata", audio), ("normalizeAudio", audio), ("audioToVideo", audio),
+            ("trimAudio", audio), ("audioChannels", audio), ("redactAudio", audio), ("trimVideo", video), ("cropVideo", video),
+            ("changeVideoSpeed", video), ("videoSnapshots", video), ("splitVideo", video), ("redactVideo", video), ("joinVideos", video),
+        ]
+        for (toolID, files) in cases {
+            let view = ToolDialogView(toolID: toolID, title: Catalog.bundled.tools[toolID]?.name ?? toolID, files: files, run: { _, _ in }, cancel: {})
+            let rep = try render(view, named: "media-\(toolID)-\(FileName.ext(of: files[0]))")
+            XCTAssertGreaterThan(visiblePixels(rep), 400, "\(toolID) drew nothing")
+        }
+    }
+
     func testAToolWithoutSettingsSaysSo() throws {
         let view = ToolDialogView(toolID: "readQR", title: "Read QR Code", files: [URL(fileURLWithPath: "/tmp/a.png")], run: { _, _ in }, cancel: {})
         XCTAssertGreaterThan(visiblePixels(try render(view, named: "dialog-none")), 100)

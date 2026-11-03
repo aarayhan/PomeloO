@@ -5,9 +5,8 @@ import os
 /// nobody reads fills up (about 64 KB) and stalls ffmpeg for good. Cancelling the task terminates the process.
 struct FFmpegRunner: Sendable {
     let executable: URL
-
-    /// Lines of standard error kept for the error message.
-    private static let tailLines = 40
+    /// Lines of standard error kept for the error message; reading a header needs far more than an error does.
+    var tailLines = 40
 
     /// Returns the tail of standard error. `onOutputLine` gets every line of standard output (`-progress pipe:1`).
     @discardableResult
@@ -24,7 +23,7 @@ struct FFmpegRunner: Sendable {
         process.standardError = errors
 
         let finishedReading = DispatchGroup()
-        let tail = LineTail(limit: Self.tailLines)
+        let tail = LineTail(limit: tailLines)
         let outputReader = LineReader(output.fileHandleForReading, group: finishedReading, onLine: onOutputLine)
         let errorReader = LineReader(errors.fileHandleForReading, group: finishedReading) { tail.add($0) }
 

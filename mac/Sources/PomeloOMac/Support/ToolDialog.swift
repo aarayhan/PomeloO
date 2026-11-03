@@ -56,7 +56,22 @@ struct ToolDialogView: View {
     @State private var password = PasswordForm()
     @State private var watermark = WatermarkForm()
     @State private var numbers = NumberForm()
+    @State private var mediaCompress = MediaCompressForm()
+    @State private var mediaMetadata = MediaMetadataForm()
+    @State private var normalize = NormalizeForm()
+    @State private var visualize = VisualizeForm()
+    @State private var trim: TrimForm
+    @State private var channels = ChannelsForm()
+    @State private var bleep = BleepForm()
+    @State private var videoCrop = VideoCropForm()
+    @State private var speed = SpeedForm()
+    @State private var snapshots = SnapshotForm()
+    @State private var splitVideo = SplitVideoForm()
+    @State private var videoRedact = VideoRedactForm()
+    @State private var join: JoinForm
     @State private var error: String?
+
+    private var isMedia: Bool { files.first.map(ToolForms.isMedia) ?? false }
 
     init(toolID: String, title: String, files: [URL], run: @escaping (ToolInvocation, [URL]) -> Void, cancel: @escaping () -> Void) {
         self.toolID = toolID
@@ -65,6 +80,8 @@ struct ToolDialogView: View {
         self.run = run
         self.cancel = cancel
         _merge = State(initialValue: MergeForm(files: files))
+        _join = State(initialValue: JoinForm(files: files))
+        _trim = State(initialValue: TrimForm(isVideo: toolID == "trimVideo"))
     }
 
     var body: some View {
@@ -87,7 +104,7 @@ struct ToolDialogView: View {
         do {
             let invocation = try makeInvocation()
             error = nil
-            run(invocation, toolID == "mergePDF" ? merge.files : files)
+            run(invocation, toolID == "mergePDF" ? merge.files : toolID == "joinVideos" ? join.files : files)
         } catch let problem as ToolFormError {
             error = problem.message
         } catch {
@@ -97,8 +114,19 @@ struct ToolDialogView: View {
 
     private func makeInvocation() throws -> ToolInvocation {
         switch toolID {
-        case "compress": try compress.invocation()
-        case "removeMetadata": try metadata.invocation()
+        case "compress": try isMedia ? mediaCompress.invocation() : compress.invocation()
+        case "removeMetadata": try isMedia ? mediaMetadata.invocation() : metadata.invocation()
+        case "normalizeAudio": try normalize.invocation()
+        case "audioToVideo": try visualize.invocation()
+        case "trimAudio", "trimVideo": try trim.invocation()
+        case "audioChannels": try channels.invocation()
+        case "redactAudio": try bleep.invocation()
+        case "cropVideo": try videoCrop.invocation()
+        case "changeVideoSpeed": try speed.invocation()
+        case "videoSnapshots": try snapshots.invocation()
+        case "splitVideo": try splitVideo.invocation()
+        case "redactVideo": try videoRedact.invocation()
+        case "joinVideos": try join.invocation()
         case "cropImage": try crop.invocation()
         case "redactImage": try redact.invocation()
         case "editImage": try adjust.invocation()
@@ -115,8 +143,19 @@ struct ToolDialogView: View {
 
     @ViewBuilder private var form: some View {
         switch toolID {
-        case "compress": compressForm
-        case "removeMetadata": metadataForm
+        case "compress": if isMedia { mediaCompressForm } else { compressForm }
+        case "removeMetadata": if isMedia { mediaMetadataForm } else { metadataForm }
+        case "normalizeAudio": normalizeForm
+        case "audioToVideo": visualizeForm
+        case "trimAudio", "trimVideo": trimForm
+        case "audioChannels": channelsForm
+        case "redactAudio": bleepForm
+        case "cropVideo": videoCropForm
+        case "changeVideoSpeed": speedForm
+        case "videoSnapshots": snapshotForm
+        case "splitVideo": splitVideoForm
+        case "redactVideo": videoRedactForm
+        case "joinVideos": joinForm
         case "cropImage": cropForm
         case "redactImage": redactForm
         case "editImage": adjustForm
@@ -313,6 +352,261 @@ struct ToolDialogView: View {
             }
             Stepper("Start at \(numbers.options.start)", value: $numbers.options.start, in: 0...99_999)
             Stepper("Size \(numbers.options.size) pt", value: $numbers.options.size, in: 6...36)
+        }
+    }
+
+    // MARK: audio and video
+
+    private var mediaCompressForm: some View {
+        let isVideo = files.first.map(ToolForms.isVideo) ?? false
+        return VStack(alignment: .leading, spacing: 10) {
+            Picker("Quality", selection: $mediaCompress.quality) {
+                Text("Custom").tag(CompressForm.Quality.custom)
+                Text("High quality").tag(CompressForm.Quality.highQuality)
+                Text("Balanced").tag(CompressForm.Quality.balanced)
+                Text("Smallest").tag(CompressForm.Quality.smallest)
+            }
+            if mediaCompress.quality == .custom {
+                slider("Target size", value: $mediaCompress.percent, range: 5...95, unit: "%")
+                Stepper("Exact size (KB, 0 = off): \(mediaCompress.targetKB)", value: $mediaCompress.targetKB, in: 0...100_000_000, step: 500)
+            }
+            if isVideo { slider("Resize", value: $mediaCompress.resizePercent, range: 10...100, unit: "%") }
+            Text(isVideo ? "Sets the bitrate from the size you ask for, so the result lands near it, not exactly on it."
+                         : "WAV and AIFF become FLAC, which loses nothing. Other formats lose quality as the size drops.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var mediaMetadataForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Action", selection: $mediaMetadata.mode) {
+                Text("Remove everything").tag(MediaMetadataForm.Mode.remove)
+                Text("Edit fields").tag(MediaMetadataForm.Mode.edit)
+            }.pickerStyle(.segmented)
+            if mediaMetadata.mode == .edit {
+                TextField("Title", text: $mediaMetadata.title)
+                TextField("Artist", text: $mediaMetadata.artist)
+                TextField("Album", text: $mediaMetadata.album)
+                TextField("Genre", text: $mediaMetadata.genre)
+                TextField("Date or year", text: $mediaMetadata.date)
+                TextField("Comment", text: $mediaMetadata.comment)
+                Text("Empty fields stay as they are. The sound and picture are copied, not re-encoded.").font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("Tags, cover art info and chapters are removed. The sound and picture are copied, not re-encoded.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var normalizeForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Target", selection: $normalize.options.loudness) {
+                ForEach(NormalizeForm.presets, id: \.loudness) { Text($0.name).tag($0.loudness) }
+            }
+            HStack {
+                Text("Loudness range")
+                TextField("LU", value: $normalize.options.range, format: .number).frame(width: 60)
+                Text("LU")
+                Spacer().frame(width: 12)
+                Text("True peak")
+                TextField("dBTP", value: $normalize.options.truePeak, format: .number).frame(width: 60)
+                Text("dBTP")
+            }
+            Text("Measures the whole file first, then adjusts it once (EBU R128), so it takes two passes.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var visualizeForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Style", selection: $visualize.options.style) {
+                Text("Waves").tag(VisualizeOptions.Style.waves)
+                Text("Spectrum").tag(VisualizeOptions.Style.spectrum)
+                Text("Picture").tag(VisualizeOptions.Style.image)
+            }.pickerStyle(.segmented)
+            if visualize.options.style == .waves {
+                ColorPicker("Colour", selection: hexBinding($visualize.options.color), supportsOpacity: false)
+            }
+            if visualize.options.style == .image {
+                HStack {
+                    Button("Choose Picture…") { chooseImage() }
+                    Text(visualize.options.image?.lastPathComponent ?? "None chosen").foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                }
+            }
+            Picker("Shape", selection: $visualize.options.shape) {
+                Text("Landscape 1280×720").tag(VisualizeOptions.Shape.landscape)
+                Text("Portrait 720×1280").tag(VisualizeOptions.Shape.portrait)
+                Text("Square 1080×1080").tag(VisualizeOptions.Shape.square)
+            }
+            Text("Makes an MP4 with the sound under an animation or a still picture.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func chooseImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        if panel.runModal() == .OK { visualize.options.image = panel.url }
+    }
+
+    private var trimForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("From").frame(width: 40, alignment: .leading)
+                TextField("0", text: $trim.start).frame(width: 90)
+                Text("to").frame(width: 20)
+                TextField("end of file", text: $trim.end).frame(width: 90)
+            }
+            if !trim.isVideo { Toggle("Also cut silence at the start and end", isOn: $trim.trimSilence) }
+            Text("Times in seconds (83.5) or minutes and seconds (1:23.5). Cuts land exactly, so the file is re-encoded. A player to pick the moments comes later.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var channelsForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Channels", selection: $channels.channels) {
+                Text("Mono").tag(1)
+                Text("Stereo").tag(2)
+            }.pickerStyle(.segmented)
+            slider("Left volume", value: $channels.left, range: 0...200, unit: "%")
+            slider("Right volume", value: $channels.right, range: 0...200, unit: "%")
+            Text("For mono, the two sides are mixed after their volumes are applied.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var bleepForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TextField("Stretches, e.g. 1:02-1:05, 2:00-2:03", text: $bleep.ranges)
+            Picker("Cover with", selection: $bleep.mode) {
+                Text("A beep").tag(BleepOptions.Mode.beep)
+                Text("Silence").tag(BleepOptions.Mode.mute)
+            }.pickerStyle(.segmented)
+            if bleep.mode == .beep { Stepper("Beep pitch \(bleep.frequency) Hz", value: $bleep.frequency, in: 200...4000, step: 100) }
+            Text("Times in seconds or minutes and seconds. The rest of the sound is left as it is.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var videoCropForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Aspect", selection: $videoCrop.aspect) {
+                ForEach(CropForm.aspects, id: \.self) { Text($0 == "free" ? "Free" : $0).tag($0) }
+            }
+            HStack {
+                Text("Exact size")
+                TextField("Width", value: $videoCrop.width, format: .number).frame(width: 70)
+                Text("×")
+                TextField("Height", value: $videoCrop.height, format: .number).frame(width: 70)
+                Text("px")
+            }
+            Text("Crops from the middle; the sound is kept. Choosing the area on the picture comes later.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var speedForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Speed")
+                TextField("×", value: $speed.factor, format: .number).frame(width: 70)
+                Text("×")
+            }
+            HStack {
+                ForEach(SpeedForm.presets, id: \.self) { preset in
+                    Button(preset == preset.rounded() ? "\(Int(preset))×" : "\(preset)×") { speed.factor = preset }
+                }
+            }
+            Text("The pitch of the sound stays the same. From 0.25× to 8×.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var snapshotForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Pictures", selection: $snapshots.mode) {
+                Text("Evenly spaced").tag(SnapshotForm.Mode.count)
+                Text("At moments").tag(SnapshotForm.Mode.moments)
+            }.pickerStyle(.segmented)
+            if snapshots.mode == .count {
+                Stepper("\(snapshots.count) picture\(snapshots.count == 1 ? "" : "s")", value: $snapshots.count, in: 1...200)
+            } else {
+                TextField("Moments, e.g. 1.5, 10, 1:05", text: $snapshots.moments)
+            }
+            Text("Full-size PNG. One picture is a file; several go in a new folder.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var splitVideoForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Split", selection: $splitVideo.mode) {
+                Text("Equal parts").tag(SplitVideoForm.Mode.parts)
+                Text("Fixed length").tag(SplitVideoForm.Mode.length)
+                Text("At moments").tag(SplitVideoForm.Mode.points)
+            }.pickerStyle(.segmented)
+            switch splitVideo.mode {
+            case .parts: Stepper("\(splitVideo.parts) parts", value: $splitVideo.parts, in: 2...100)
+            case .length: TextField("Length of each clip, e.g. 60 or 1:30", text: $splitVideo.seconds)
+            case .points: TextField("Cut at, e.g. 30, 1:15", text: $splitVideo.points)
+            }
+            Toggle("Exact cuts (re-encodes; off is fast but cuts on key frames)", isOn: $splitVideo.precise)
+            Text("The clips go in a new folder.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var videoRedactForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach($videoRedact.areas) { $area in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Area").font(.callout)
+                                intField("x", $area.x); intField("y", $area.y); intField("w", $area.width); intField("h", $area.height)
+                                Text("%").foregroundStyle(.secondary)
+                                Spacer()
+                                Button { videoRedact.areas.removeAll { $0.id == area.id } } label: { Image(systemName: "minus.circle") }
+                                    .disabled(videoRedact.areas.count == 1).buttonStyle(.borderless)
+                            }
+                            HStack {
+                                Text("Only from").font(.caption).foregroundStyle(.secondary)
+                                TextField("start", text: $area.from).frame(width: 70)
+                                Text("to").font(.caption).foregroundStyle(.secondary)
+                                TextField("end", text: $area.until).frame(width: 70)
+                            }
+                        }
+                    }
+                }
+            }.frame(maxHeight: 200)
+            Button("Add Area") { videoRedact.areas.append(.init()) }
+            Picker("Style", selection: $videoRedact.style) {
+                Text("Blur").tag(VideoRedactOptions.Style.blur)
+                Text("Black").tag(VideoRedactOptions.Style.black)
+                Text("Colour").tag(VideoRedactOptions.Style.color)
+            }.pickerStyle(.segmented)
+            if videoRedact.style == .color { ColorPicker("Colour", selection: hexBinding($videoRedact.color), supportsOpacity: false) }
+            Text("x and y are the top left corner, w and h the size, in percent of the picture. Leave the times empty to cover the whole video. Drawing the areas comes later.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func intField(_ label: String, _ value: Binding<Int>) -> some View {
+        HStack(spacing: 2) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            TextField(label, value: value, format: .number).frame(width: 42)
+        }
+    }
+
+    private var joinForm: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Order of the clips").font(.callout)
+            ForEach(Array(join.files.enumerated()), id: \.offset) { index, file in
+                HStack {
+                    Text("\(index + 1).").foregroundStyle(.secondary).frame(width: 22, alignment: .trailing)
+                    Text(file.lastPathComponent).lineLimit(1).truncationMode(.middle)
+                    Spacer()
+                    Button { join.move(from: index, by: -1) } label: { Image(systemName: "chevron.up") }.disabled(index == 0)
+                    Button { join.move(from: index, by: 1) } label: { Image(systemName: "chevron.down") }.disabled(index == join.files.count - 1)
+                }
+            }
+            Text("The result is an MP4 the size of the first clip; the others are fitted into it. A clip with no sound is given silence.")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 

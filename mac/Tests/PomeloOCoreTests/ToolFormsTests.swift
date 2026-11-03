@@ -144,6 +144,161 @@ final class ToolFormsTests: XCTestCase {
         XCTAssertNotNil(message { try number.invocation() })
     }
 
+    // MARK: audio and video
+
+    func testMediaCompress() throws {
+        var form = MediaCompressForm()
+        XCTAssertEqual(try form.invocation(), .media(.compress(MediaCompressOptions(percent: 50))))
+        form.quality = .smallest
+        XCTAssertEqual(try form.invocation(), .media(.compress(MediaCompressOptions(percent: 25))))
+        form.quality = .custom
+        form.percent = 99
+        XCTAssertNotNil(message { try form.invocation() })
+        form.percent = 40
+        form.resizePercent = 5
+        XCTAssertNotNil(message { try form.invocation() })
+    }
+
+    func testMediaMetadata() throws {
+        var form = MediaMetadataForm()
+        XCTAssertEqual(try form.invocation(), .media(.metadata(fields: nil)))
+        form.mode = .edit
+        XCTAssertNotNil(message { try form.invocation() }, "nothing to set")
+        form.title = "Hello"
+        form.album = "  "
+        XCTAssertEqual(try form.invocation(), .media(.metadata(fields: ["title": "Hello"])))
+    }
+
+    func testTrimTimes() throws {
+        var form = TrimForm(isVideo: true)
+        XCTAssertNotNil(message { try form.invocation() }, "from 0 to the end cuts nothing")
+        form.start = "1:05"
+        XCTAssertEqual(try form.invocation(), .media(.trimVideo(TrimOptions(start: 65, end: 0))))
+        form.end = "1:20.5"
+        XCTAssertEqual(try form.invocation(), .media(.trimVideo(TrimOptions(start: 65, end: 80.5))))
+        form.end = "30"
+        XCTAssertEqual(message { try form.invocation() }, "The end must come after the start.")
+        form.end = "soon"
+        XCTAssertTrue(message { try form.invocation() }?.contains("not a time") == true)
+        var audio = TrimForm(isVideo: false)
+        audio.trimSilence = true
+        XCTAssertEqual(try audio.invocation(), .media(.trimAudio(TrimOptions(start: 0, end: 0, trimSilence: true))), "cutting silence alone is enough")
+        var video = TrimForm(isVideo: true)
+        video.start = "1"
+        video.trimSilence = true
+        XCTAssertEqual(try video.invocation(), .media(.trimVideo(TrimOptions(start: 1, end: 0, trimSilence: false))), "silence is an audio setting")
+    }
+
+    func testBleepRanges() throws {
+        var form = BleepForm()
+        XCTAssertNotNil(message { try form.invocation() })
+        form.ranges = "1:02-1:05, 2:00-2:03.5"
+        XCTAssertEqual(try form.invocation(), .media(.bleep(BleepOptions(ranges: [TimeRange(start: 62, end: 65), TimeRange(start: 120, end: 123.5)]))))
+        form.ranges = "5-3"
+        XCTAssertTrue(message { try form.invocation() }?.contains("end must come after") == true)
+        form.ranges = "12"
+        XCTAssertTrue(message { try form.invocation() }?.contains("should look like") == true)
+        form.ranges = "1-2"
+        form.frequency = 10
+        XCTAssertNotNil(message { try form.invocation() })
+    }
+
+    func testChannels() throws {
+        var form = ChannelsForm()
+        XCTAssertEqual(try form.invocation(), .media(.channels(ChannelOptions(channels: 1))))
+        form.right = 250
+        XCTAssertNotNil(message { try form.invocation() })
+        form.right = 50
+        form.channels = 3
+        XCTAssertNotNil(message { try form.invocation() })
+    }
+
+    func testVideoCropAndSpeed() throws {
+        var crop = VideoCropForm()
+        XCTAssertNotNil(message { try crop.invocation() })
+        crop.aspect = "1:1"
+        XCTAssertEqual(try crop.invocation(), .media(.cropVideo(VideoCropOptions(aspect: "1:1"))))
+        crop.width = 100
+        XCTAssertNotNil(message { try crop.invocation() }, "one of width and height")
+
+        var speed = SpeedForm()
+        XCTAssertEqual(try speed.invocation(), .media(.speed(factor: 2)))
+        speed.factor = 1
+        XCTAssertNotNil(message { try speed.invocation() })
+        speed.factor = 9
+        XCTAssertNotNil(message { try speed.invocation() })
+    }
+
+    func testSnapshotsAndSplit() throws {
+        var shots = SnapshotForm()
+        XCTAssertEqual(try shots.invocation(), .media(.snapshots(SnapshotOptions(count: 1))))
+        shots.mode = .moments
+        XCTAssertNotNil(message { try shots.invocation() })
+        shots.moments = "1.5, 1:05"
+        XCTAssertEqual(try shots.invocation(), .media(.snapshots(SnapshotOptions(times: [1.5, 65]))))
+
+        var split = SplitVideoForm()
+        XCTAssertEqual(try split.invocation(), .media(.splitVideo(SplitOptions(parts: 2))))
+        split.mode = .length
+        split.seconds = "0.2"
+        XCTAssertNotNil(message { try split.invocation() })
+        split.seconds = "1:30"
+        split.precise = false
+        XCTAssertEqual(try split.invocation(), .media(.splitVideo(SplitOptions(seconds: 90, precise: false))))
+        split.mode = .points
+        split.points = ""
+        XCTAssertNotNil(message { try split.invocation() })
+        split.points = "30, 75"
+        XCTAssertEqual(try split.invocation(), .media(.splitVideo(SplitOptions(points: [30, 75], precise: false))))
+    }
+
+    func testVideoRedactAreas() throws {
+        var form = VideoRedactForm()
+        guard case let .media(.redactVideo(options)) = try form.invocation() else { return XCTFail() }
+        XCTAssertEqual(options.regions.count, 1)
+        XCTAssertEqual(options.regions[0].rect, CGRect(x: 0.1, y: 0.1, width: 0.3, height: 0.2))
+        XCTAssertNil(options.regions[0].time, "no times: the whole video")
+        form.areas[0].width = 95
+        XCTAssertTrue(message { try form.invocation() }?.contains("must fit inside") == true)
+        form.areas[0].width = 30
+        form.areas[0].from = "2"
+        guard case let .media(.redactVideo(timed)) = try form.invocation() else { return XCTFail() }
+        XCTAssertEqual(timed.regions[0].time?.start, 2)
+        XCTAssertGreaterThan(timed.regions[0].time?.end ?? 0, 3600, "no end: to the end of the video")
+        form.areas[0].until = "1"
+        XCTAssertTrue(message { try form.invocation() }?.contains("end must come after") == true)
+        form.areas = []
+        XCTAssertNotNil(message { try form.invocation() })
+    }
+
+    func testNormalizeVisualizeAndJoin() throws {
+        var normalize = NormalizeForm()
+        XCTAssertEqual(try normalize.invocation(), .media(.normalize(NormalizeOptions())))
+        normalize.options.loudness = 3
+        XCTAssertNotNil(message { try normalize.invocation() })
+
+        var visual = VisualizeForm()
+        XCTAssertEqual(try visual.invocation(), .media(.visualize(VisualizeOptions())))
+        visual.options.style = .image
+        XCTAssertNotNil(message { try visual.invocation() }, "a picture is needed")
+
+        var join = JoinForm(files: [URL(fileURLWithPath: "/a.mp4"), URL(fileURLWithPath: "/b.mp4"), URL(fileURLWithPath: "/c.mp4")])
+        join.move(from: 0, by: 2)
+        XCTAssertEqual(join.files.map(\.lastPathComponent), ["c.mp4", "b.mp4", "a.mp4"])
+        join.move(from: 0, by: -1)
+        XCTAssertEqual(join.files.count, 3)
+        XCTAssertEqual(try join.invocation(), .media(.join))
+        XCTAssertNotNil(message { try JoinForm(files: [URL(fileURLWithPath: "/a.mp4")]).invocation() })
+    }
+
+    func testAVideoNeedsNoDialogToMute() {
+        XCTAssertEqual(ToolForms.invocationWithoutDialog(toolID: "muteVideo"), .media(.mute))
+        XCTAssertTrue(ToolForms.isMedia(URL(fileURLWithPath: "/a.MP3")))
+        XCTAssertFalse(ToolForms.isMedia(URL(fileURLWithPath: "/a.png")))
+        XCTAssertTrue(ToolForms.isVideo(URL(fileURLWithPath: "/a.mkv")))
+        XCTAssertFalse(ToolForms.isVideo(URL(fileURLWithPath: "/a.mp3")))
+    }
+
     func testWhichToolsHaveADialog() {
         XCTAssertTrue(ToolForms.withDialog.contains("compress"))
         XCTAssertTrue(ToolForms.withDialog.contains("protectPDF"))
