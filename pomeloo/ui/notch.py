@@ -52,6 +52,7 @@ class Notch(QWidget):
         for w in self.page.values():
             self.pages.addWidget(w)
         self.shelf.changed.connect(self._pill_text)
+        self.phone.received.connect(self.made.add)  # a file from the phone is not a Downloads suggestion
         self.phone.stopped.connect(self.collapse_now)  # Stop (or the idle limit) also closes the notch
         self.clip.image_copied.connect(self._copied_image)
         from ..recipes import NewFiles

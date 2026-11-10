@@ -11,7 +11,17 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-INBOX = Path.home() / "Downloads" / "PomeloO"
+
+def _downloads() -> Path:
+    """The real Downloads folder (it may have been moved to another drive)."""
+    try:
+        from win32com.shell import shell
+        return Path(shell.SHGetKnownFolderPath(shell.FOLDERID_Downloads, 0, 0))
+    except Exception:
+        return Path.home() / "Downloads"
+
+
+INBOX = _downloads()
 _CHUNK = 1 << 20
 
 
@@ -45,16 +55,33 @@ body{{margin:0;font:16px system-ui,sans-serif;background:#18181b;color:#f4f4f5}}
 h1{{font-size:22px;margin:4px 0 18px}}h1 b{{color:#ff8a00}}h2{{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#a1a1aa;margin:22px 0 8px}}
 a.f{{display:flex;justify-content:space-between;gap:12px;padding:14px;margin:6px 0;border-radius:12px;background:#27272a;color:inherit;text-decoration:none}}
 a.f span:last-child{{color:#a1a1aa;white-space:nowrap}}label{{display:block;text-align:center;padding:16px;border-radius:12px;background:#ff8a00;color:#18181b;font-weight:700}}
-input{{display:none}}#log div{{padding:8px 2px;color:#d4d4d8}}progress{{width:100%;accent-color:#ff8a00}}p{{color:#a1a1aa}}
-</style></head><body><main><h1><b>PomeloO</b> · {host}</h1>{files}
+input{{display:none}}#log .row{{display:flex;justify-content:space-between;gap:12px;padding:8px 2px;color:#d4d4d8}}#log .row span:last-child{{white-space:nowrap}}p{{color:#a1a1aa}}
+#st{{position:sticky;top:0;z-index:5;margin:-20px -16px 16px;padding:14px 16px;font-weight:700;text-align:center;background:#27272a}}
+#st.ok{{background:#16a34a;color:#fff}}#st.bad{{background:#dc2626;color:#fff}}
+</style></head><body><main><div id="st" hidden></div><h1><b>PomeloO</b> · {host}</h1>{files}
 <h2>Send to this PC</h2><label for="up">Choose files</label><input id="up" type="file" multiple>
-<div id="log"></div><p>Files go to {inbox}.</p></main><script>
-const log=document.getElementById('log');
-document.getElementById('up').onchange=async e=>{{for(const f of e.target.files){{
- const row=document.createElement('div'),bar=document.createElement('progress');row.textContent=f.name;row.append(bar);log.append(row);
- await new Promise(ok=>{{const x=new XMLHttpRequest();x.open('PUT','up?name='+encodeURIComponent(f.name));
-  x.upload.onprogress=p=>{{bar.max=p.total;bar.value=p.loaded}};x.onloadend=()=>{{bar.remove();row.textContent=(x.status==200?'✓ ':'✗ ')+f.name;ok()}};x.send(f)}})}}
- e.target.value=''}};
+<div id="log"></div><p>Files go to Downloads on {host}.</p></main><script>
+const log=document.getElementById('log'),st=document.getElementById('st'),inp=document.getElementById('up');
+let failed=[];
+function status(cls,text){{st.hidden=false;st.className=cls;st.textContent=text}}
+function send(f,pct){{return new Promise(ok=>{{const x=new XMLHttpRequest();x.open('PUT','up?name='+encodeURIComponent(f.name));
+ x.upload.onprogress=p=>{{if(p.lengthComputable)pct(p.loaded/p.total)}};
+ x.onload=()=>ok(x.status==200?'':(x.responseText||'error '+x.status));
+ x.onerror=x.ontimeout=()=>ok('connection lost');x.send(f)}})}}
+async function run(files){{
+ failed=[];let done=0;const n=files.length;
+ for(const f of files){{
+  const row=document.createElement('div'),nm=document.createElement('span'),info=document.createElement('span');
+  row.className='row';nm.textContent=f.name;info.textContent='…';row.append(nm,info);log.append(row);
+  status('',(n>1?'Sending '+(done+1)+' of '+n:'Sending')+'…');
+  const err=await send(f,r=>{{const t=Math.round(r*100)+'%';info.textContent=t;status('',(n>1?'Sending '+(done+1)+' of '+n+': ':'Sending: ')+t)}});
+  if(err){{failed.push(f);info.textContent='✗ '+err;row.style.color='#fca5a5'}}else{{done++;info.textContent='✓'}}
+ }}
+ if(failed.length)status('bad','✗ '+failed.length+' not sent. Tap here to retry.');
+ else{{status('ok','✓ '+n+(n>1?' files':' file')+' sent to {host}');if(navigator.vibrate)navigator.vibrate(120)}}
+}}
+st.onclick=()=>{{if(st.className=='bad'&&failed.length)run(failed.slice())}};
+inp.onchange=()=>{{const files=[...inp.files];inp.value='';if(files.length)run(files)}};
 </script></body></html>"""
 
 
@@ -81,8 +108,7 @@ class Share:
         rows = "".join(f'<a class="f" href="f/{i}" download><span>{html.escape(f.name)}</span>'
                        f'<span>{f.stat().st_size / 1e6:.1f} MB</span></a>' for i, f in enumerate(self.files))
         files = f"<h2>From the PC</h2>{rows}" if rows else ""
-        return _PAGE.format(host=html.escape(socket.gethostname()), files=files,
-                            inbox=html.escape(str(INBOX))).encode()
+        return _PAGE.format(host=html.escape(socket.gethostname()), files=files).encode()
 
     def receive(self, name: str, length: int, stream) -> Path:
         from .catalog import unique

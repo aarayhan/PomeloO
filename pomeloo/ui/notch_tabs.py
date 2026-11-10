@@ -443,20 +443,27 @@ class PhoneTab(QWidget):
             right.addWidget(w)
         right.addLayout(row)
         lay.addLayout(right, 1)
-        self.received.connect(lambda p: (self.got.set_paths(self.got.paths() + [p]), self.idle.start()))
+        self.received.connect(self._got)
         self._idle()
+
+    def _got(self, path):
+        self.got.set_paths(self.got.paths() + [path])
+        n = len(self.got.paths())
+        self.title.setText(f"✓ Received {n} file{'s' * (n != 1)}")
+        self.idle.start()
 
     def start(self, files):
         """Raises RuntimeError when the PC isn't on a network (shown by the notch)."""
         from .. import phone
         from .extras import qr_pixmap
         self.stop()
+        self.got.set_paths([])
         self.share = phone.Share(files, on_receive=lambda p: self.received.emit(str(p)))
         self.qr.setPixmap(qr_pixmap(self.share.url, 150))
         self.qr.setStyleSheet("background:white;border-radius:10px;padding:6px")
         self.qr.show()
         self.title.setText(f"Sending {len(files)} file{'s' * (len(files) != 1)}" if files else "Waiting for your phone")
-        self.hint.setText("Scan with the phone camera (same Wi-Fi). Files from the phone land in Downloads\\PomeloO."
+        self.hint.setText("Scan with the phone camera (same Wi-Fi). Files from the phone land in Downloads."
                           + (" Tap a file on the phone to download it." if files else ""))
         self.start_btn.hide()
         self.stop_btn.show()

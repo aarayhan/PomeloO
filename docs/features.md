@@ -85,7 +85,7 @@ Tool details:
 Share (Windows share sheet), Float (always-on-top shelf to drag files from), Copy (files to clipboard),
 Move (choose folder), Copy Path (one path per line), Terminal (Windows Terminal at the folder),
 Rename (pattern with {name} {n} {n:03} {date} {time} {folder}, live preview), Send to Phone (QR code:
-the phone downloads the files over Wi-Fi and can send files back to Downloads\PomeloO).
+the phone downloads the files over Wi-Fi and can send files back to Downloads).
 
 ## Notch
 A black pill at the top centre of the screen (Settings → Notch: position, which screen, which parts).
